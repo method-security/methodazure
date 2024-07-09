@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+
+types:
+  PrincipalType:
+    enum:
+      - Device
+      - ForeignGroup
+      - Group
+      - ServicePrincipal
+      - User
+      - Unknown
+  Permission:
+    properties:
+      actions: optional<list<string>>
+      dataActions: optional<list<string>>
+      notActions: optional<list<string>>
+      notDataActions: optional<list<string>>
+  RoleDefinition:
+    docs: |
+      An Azure Role definition describes certain actions that can be performed on resource(s). This type is mirrored
+      after the RoleDefinition type: https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2#RoleDefinition
+    properties:
+      id: string
+      name: string
+      type: string
+      assignableScopes: optional<list<string>>
+      description: optional<string>
+      roleName: optional<string>
+      roleType: optional<string>
+      permissions: optional<list<Permission>>
+  RoleAssignment:
+    docs: |
+      An Azure Role assignment is a mapping between a user, group, service principal, or managed identity to a role.
+      This type is mirrored after the RoleAssignment type: https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2#RoleAssignment
+    properties:
+      id: string
+      name: string
+      type: string
+      principalId: string
+      roleDefinitionId: string
+      condition: optional<string>
+      conditionVersion: optional<string>
+      delegatedManagedIdentityResourceId: optional<string>
+      description: optional<string>
+      principalType: optional<PrincipalType>
+      createdBy: optional<string>
+      createdOn: optional<datetime>
+      scope: optional<string>
+      updatedBy: optional<string>
+      updatedOn: optional<datetime>
+  IamReport:
+    properties:
+      subscriptionId: string
+      tenantId: string
+      roleAssignments: optional<list<RoleAssignment>>
+      roleDefinitions: optional<list<RoleDefinition>>
+      errors: optional<list<string>>

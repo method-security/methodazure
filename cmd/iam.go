@@ -33,12 +33,8 @@ func (a *MethodAzure) InitIAMCommand() {
 			}
 			a.AzureConfig.SubID = subscriptionID
 
-			report, err := iam.EnumerateIAMResources(cmd.Context(), a.AzureConfig)
-			if err != nil {
-				errorMessage := err.Error()
-				a.OutputSignal.ErrorMessage = &errorMessage
-				a.OutputSignal.Status = 1
-			}
+			report := iam.EnumerateIAMResources(cmd.Context(), a.AzureConfig)
+
 			a.OutputSignal.Content = report
 		},
 	}
