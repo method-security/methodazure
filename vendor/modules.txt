@@ -266,12 +266,12 @@ github.com/palantir/pkg/safeyaml
 # github.com/palantir/pkg/transform v1.1.0
 ## explicit; go 1.19
 github.com/palantir/pkg/transform
-# github.com/palantir/witchcraft-go-error v1.34.0
-## explicit; go 1.21
+# github.com/palantir/witchcraft-go-error v1.40.0
+## explicit; go 1.23.0
 github.com/palantir/witchcraft-go-error
 github.com/palantir/witchcraft-go-error/internal/errors
-# github.com/palantir/witchcraft-go-logging v1.51.0
-## explicit; go 1.21
+# github.com/palantir/witchcraft-go-logging v1.59.0
+## explicit; go 1.24.0
 github.com/palantir/witchcraft-go-logging/conjure/witchcraft/api/logging
 github.com/palantir/witchcraft-go-logging/internal/gopath
 github.com/palantir/witchcraft-go-logging/wlog
@@ -280,11 +280,11 @@ github.com/palantir/witchcraft-go-logging/wlog-tmpl/logentryformatter
 github.com/palantir/witchcraft-go-logging/wlog-tmpl/logs
 github.com/palantir/witchcraft-go-logging/wlog/internal
 github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log
-# github.com/palantir/witchcraft-go-params v1.31.0
-## explicit; go 1.21
+# github.com/palantir/witchcraft-go-params v1.37.0
+## explicit; go 1.23.0
 github.com/palantir/witchcraft-go-params
-# github.com/palantir/witchcraft-go-tracing v1.33.0
-## explicit; go 1.21
+# github.com/palantir/witchcraft-go-tracing v1.39.0
+## explicit; go 1.23.0
 github.com/palantir/witchcraft-go-tracing/wtracing
 # github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 ## explicit; go 1.14
@@ -301,9 +301,10 @@ github.com/spf13/pflag
 # github.com/std-uritemplate/std-uritemplate/go v0.0.55
 ## explicit; go 1.20
 github.com/std-uritemplate/std-uritemplate/go
-# github.com/stretchr/testify v1.9.0
+# github.com/stretchr/testify v1.10.0
 ## explicit; go 1.17
 github.com/stretchr/testify/assert
+github.com/stretchr/testify/assert/yaml
 github.com/stretchr/testify/require
 # go.opentelemetry.io/otel v1.24.0
 ## explicit; go 1.20

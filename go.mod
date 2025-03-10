@@ -1,8 +1,7 @@
 module github.com/Method-Security/methodazure
 
 go 1.22
-
-toolchain go1.22.5
+toolchain go1.24.1
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.11.1
@@ -23,9 +22,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/microsoftgraph/msgraph-sdk-go v1.45.0
 	github.com/palantir/pkg/datetime v1.1.0
-	github.com/palantir/witchcraft-go-logging v1.51.0
+	github.com/palantir/witchcraft-go-logging v1.59.0
 	github.com/spf13/cobra v1.8.0
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 )
 
 require (
@@ -55,9 +54,9 @@ require (
 	github.com/palantir/pkg/safelong v1.1.0 // indirect
 	github.com/palantir/pkg/safeyaml v1.1.0 // indirect
 	github.com/palantir/pkg/transform v1.1.0 // indirect
-	github.com/palantir/witchcraft-go-error v1.34.0 // indirect
-	github.com/palantir/witchcraft-go-params v1.31.0 // indirect
-	github.com/palantir/witchcraft-go-tracing v1.33.0 // indirect
+	github.com/palantir/witchcraft-go-error v1.40.0 // indirect
+	github.com/palantir/witchcraft-go-params v1.37.0 // indirect
+	github.com/palantir/witchcraft-go-tracing v1.39.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
