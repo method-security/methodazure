@@ -2,6 +2,7 @@
 
 from .resources import (
     BackendAddressPool,
+    IamReport,
     InterfaceIpConfiguration,
     LoadBalancer,
     LoadBalancerBackendAddress,
@@ -27,6 +28,7 @@ from .resources import (
 
 __all__ = [
     "BackendAddressPool",
+    "IamReport",
     "InterfaceIpConfiguration",
     "LoadBalancer",
     "LoadBalancerBackendAddress",

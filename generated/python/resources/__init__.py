@@ -26,6 +26,7 @@ from .loadbalancer import (
 
 __all__ = [
     "BackendAddressPool",
+    "IamReport",
     "InterfaceIpConfiguration",
     "LoadBalancer",
     "LoadBalancerBackendAddress",
@@ -45,6 +46,7 @@ __all__ = [
     "SyncMode",
     "TransportProtocol",
     "azure",
+    "iam",
     "interface",
     "loadbalancer",
 ]

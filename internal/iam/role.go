@@ -8,11 +8,12 @@ import (
 	armpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	methodazure "github.com/Method-Security/methodazure/generated/go"
 	"github.com/Method-Security/methodazure/internal/config"
 )
 
-func listRoles(ctx context.Context, cfg config.AzureConfig) ([]RoleDetails, error) {
-	roles := []RoleDetails{}
+func listRoles(ctx context.Context, cfg config.AzureConfig) ([]*methodazure.RoleDefinition, error) {
+	roleDefinitions := []*methodazure.RoleDefinition{}
 
 	// Create a new client to interact with the Authorization resource provider
 	clientOptions := &armpolicy.ClientOptions{
@@ -22,7 +23,7 @@ func listRoles(ctx context.Context, cfg config.AzureConfig) ([]RoleDetails, erro
 	}
 	clientFactory, err := armauthorization.NewClientFactory(cfg.SubID, cfg.Cred, clientOptions)
 	if err != nil {
-		return roles, fmt.Errorf("failed to create role definitions client: %v", err)
+		return roleDefinitions, fmt.Errorf("failed to create role definitions client: %v", err)
 	}
 
 	// The scope for listing role definitions (in this case, the subscription)
@@ -35,18 +36,13 @@ func listRoles(ctx context.Context, cfg config.AzureConfig) ([]RoleDetails, erro
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return roles, fmt.Errorf("failed to advance page: %v", err)
+			return roleDefinitions, fmt.Errorf("failed to advance page: %v", err)
 		}
 		for _, role := range page.Value {
-			roleDetails := RoleDetails{
-				ID:             *role.ID,
-				Name:           *role.Name,
-				RoleDefinition: *role,
-			}
-
-			roles = append(roles, roleDetails)
+			roleDefinition := convertRoleDefinition(role)
+			roleDefinitions = append(roleDefinitions, roleDefinition)
 		}
 	}
 
-	return roles, nil
+	return roleDefinitions, nil
 }

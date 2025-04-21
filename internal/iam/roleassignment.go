@@ -8,11 +8,12 @@ import (
 	armpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
+	methodazure "github.com/Method-Security/methodazure/generated/go"
 	"github.com/Method-Security/methodazure/internal/config"
 )
 
-func listRoleAssignments(ctx context.Context, cfg config.AzureConfig) ([]RoleAssignmentDetails, error) {
-	roleAssignments := []RoleAssignmentDetails{}
+func listRoleAssignments(ctx context.Context, cfg config.AzureConfig) ([]*methodazure.RoleAssignment, error) {
+	roleAssignments := []*methodazure.RoleAssignment{}
 
 	// Create a new client to interact with the Authorization resource provider
 	clientOptions := &armpolicy.ClientOptions{
@@ -38,11 +39,8 @@ func listRoleAssignments(ctx context.Context, cfg config.AzureConfig) ([]RoleAss
 			return roleAssignments, fmt.Errorf("failed to advance page: %v", err)
 		}
 		for _, ra := range page.Value {
-			roleAssignmentDetails := RoleAssignmentDetails{
-				ID:             *ra.ID,
-				RoleAssignment: *ra,
-			}
-			roleAssignments = append(roleAssignments, roleAssignmentDetails)
+			roleAssignment := convertRoleAssignment(ra)
+			roleAssignments = append(roleAssignments, roleAssignment)
 		}
 	}
 
