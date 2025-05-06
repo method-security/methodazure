@@ -1,4 +1,5 @@
 name: 📖 Deploy Dev Docs
+
 on:
   push:
     paths:
@@ -6,6 +7,7 @@ on:
       - "mkdocs.yml"
     branches:
       - develop
+
 jobs:
   build-documents:
     name: Test Documentation Build
@@ -13,10 +15,14 @@ jobs:
     permissions:
       contents: write # mkdocs gh-deploy requires write permissions to create a new branch
     steps:
+      - name: Enable long paths in Git
+        run: git config --global core.longpaths true
+
       - name: Checkout
         uses: actions/checkout@v4.1.6
         with:
           fetch-depth: 0
+
       - name: Configure Git Credentials
         run: |
           git config user.name github-actions[bot]
@@ -31,11 +37,14 @@ jobs:
           path: .cache
           restore-keys: |
             mkdocs-material-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install -r docs/build/requirements.txt
+
       - name: Test Build
         run: mkdocs build --verbose --strict
+
       - name: Deploy Docs
         run: mkdocs gh-deploy --force
