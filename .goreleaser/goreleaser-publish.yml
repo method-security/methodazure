@@ -1,56 +1,27 @@
 version: 2
 
 project_name: methodazure
+
 builds:
-  - id: build-linux
-    main: .
-    binary: methodazure
-    ldflags:
-      - -s -w
-      - "-extldflags '-static'"
-      - -X github.com/Method-Security/methodazure/main.version={{.Version}}
-    env:
-      - CGO_ENABLED=0
+  - id: prebuilt
+    builder: prebuilt
     goos:
       - linux
-    goarch:
-      - "386"
-      - arm
-      - amd64
-      - arm64
-    goarm:
-      - "7"
-  - id: build-macos
-    main: .
-    binary: methodazure
-    ldflags:
-      - -s -w
-      - "-extldflags '-static'"
-      - -X github.com/Method-Security/methodazure/main.version={{.Version}}
-    env:
-      - CGO_ENABLED=0
-    goos:
       - darwin
-    goarch:
-      - amd64
-      - arm64
-    goarm:
-      - "7"
-  - id: build-windows
-    main: .
-    binary: methodazure
-    ldflags:
-      - -s -w
-      - "-extldflags '-static'"
-      - -X github.com/Method-Security/methodazure/main.version={{.Version}}
-    env:
-      - CGO_ENABLED=0
-    goos:
       - windows
     goarch:
       - amd64
-    goarm:
-      - "7"
+      - arm64
+    goamd64:
+      - v1
+    ignore:
+      - goos: windows
+        goarch: arm64
+      - goos: darwin
+        goarch: amd64
+    prebuilt:
+      path: output/build-{{ .Os }}_{{ .Arch }}/methodazure{{ if eq .Os "windows" }}.exe{{ end }}
+    binary: methodazure
 
 archives:
   - id: archive
@@ -85,10 +56,10 @@ dockers:
     goos: linux
     goarch: amd64
     ids:
-      - build-linux
+      - prebuilt
     build_flag_templates:
       - "--label=org.opencontainers.image.title={{ .ProjectName }}"
-      - "--label=org.opencontainers.image.description=An on-rails Azure enumeration tool"
+      - "--label=org.opencontainers.image.description=An on-rails AWS enumeration tool"
       - "--label=org.opencontainers.image.vendor=Method Security"
       - "--label=org.opencontainers.image.version={{ .Version }}"
       - "--label=org.opencontainers.image.created={{ .Date }}"
@@ -106,10 +77,10 @@ dockers:
     goos: linux
     goarch: arm64
     ids:
-      - build-linux
+      - prebuilt
     build_flag_templates:
       - "--label=org.opencontainers.image.title={{ .ProjectName }}"
-      - "--label=org.opencontainers.image.description=An on-rails Azure enumeration tool"
+      - "--label=org.opencontainers.image.description=An on-rails AWS enumeration tool"
       - "--label=org.opencontainers.image.vendor=Method Security"
       - "--label=org.opencontainers.image.version={{ .Version }}"
       - "--label=org.opencontainers.image.created={{ .Date }}"
@@ -118,7 +89,6 @@ dockers:
       - "--label=org.opencontainers.image.url=https://method.security"
       - "--label=org.opencontainers.image.documentation=https://github.com/method-security/methodazure"
       - "--platform=linux/arm64"
-
 docker_manifests:
   - name_template: 'ghcr.io/method-security/methodazure:{{ .Version }}'
     image_templates:
@@ -137,15 +107,10 @@ docker_manifests:
     - 'methodsecurity/methodazure:{{ .Version }}-amd64'
     - 'methodsecurity/methodazure:{{ .Version }}-arm64'
 
-sboms:
-  - artifacts: archive
-  - id: source
-    artifacts: source
-
 signs:
   - cmd: cosign
     env:
-      - COSIGN_EXPERIMENTAL=1
+    - COSIGN_EXPERIMENTAL=1
     signature: "${artifact}.sig"
     certificate: '${artifact}.pem'
     args:
@@ -161,10 +126,15 @@ signs:
 docker_signs:
   - cmd: cosign
     env:
-      - COSIGN_EXPERIMENTAL=1
+    - COSIGN_EXPERIMENTAL=1
     artifacts: manifests
     output: true
     args:
-      - "sign"
-      - "${artifact}"
-      - "--yes"
+    - "sign"
+    - "${artifact}"
+    - "--yes"
+
+sboms:
+  - artifacts: archive
+  - id: source
+    artifacts: source
