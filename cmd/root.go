@@ -37,6 +37,7 @@ type MethodAzure struct {
 // initialize the root command and all subcommands that are used throughout execution of the CLI.
 // We pass the version command in here from the main.go file, where we set the version string during the build process.
 func NewMethodAzure(version string) *MethodAzure {
+	startedAt := datetime.DateTime(time.Now())
 	methodAzure := MethodAzure{
 		Version: version,
 		RootFlags: config.RootFlags{
@@ -44,7 +45,7 @@ func NewMethodAzure(version string) *MethodAzure {
 			Verbose: false,
 		},
 		OutputConfig: writer.NewOutputConfig(nil, writer.NewFormat(writer.SIGNAL)),
-		OutputSignal: signal.NewSignal(nil, datetime.DateTime(time.Now()), nil, 0, nil),
+		OutputSignal: signal.NewSignal(nil, &startedAt, nil, 0, nil),
 	}
 	return &methodAzure
 }
@@ -53,7 +54,7 @@ func NewMethodAzure(version string) *MethodAzure {
 // that are used by all subcommands, such as the region, output format, and output file. It also initializes the
 // version command that prints the version of the CLI.
 // Critically, this sets the PersistentPreRunE and PersistentPostRunE functions that are inherited by all subcommands.
-// The PersistentPreRunE function is used to validate the region flag and set the AWS configuration. The PersistentPostRunE
+// The PersistentPreRunE function is used to validate the cloud-config flag and set the Azure configuration. The PersistentPostRunE
 // function is used to write the output of the command to the desired output format after the execution of the invoked
 // command's Run function.
 func (a *MethodAzure) InitRootCommand() {
@@ -112,7 +113,7 @@ func (a *MethodAzure) InitRootCommand() {
 			return writer.Write(
 				a.OutputSignal.Content,
 				a.OutputConfig,
-				a.OutputSignal.StartedAt,
+				&a.OutputSignal.StartedAt,
 				a.OutputSignal.CompletedAt,
 				a.OutputSignal.Status,
 				a.OutputSignal.ErrorMessage,

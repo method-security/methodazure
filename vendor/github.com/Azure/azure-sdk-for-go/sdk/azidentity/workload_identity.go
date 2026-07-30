@@ -1,6 +1,3 @@
-//go:build go1.18
-// +build go1.18
-
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
@@ -16,6 +13,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity/internal/customtokenproxy"
 )
 
 const credNameWorkloadIdentity = "WorkloadIdentityCredential"
@@ -39,15 +37,33 @@ type WorkloadIdentityCredentialOptions struct {
 	// Add the wildcard value "*" to allow the credential to acquire tokens for any tenant in which the
 	// application is registered.
 	AdditionallyAllowedTenants []string
+
+	// Cache is a persistent cache the credential will use to store the tokens it acquires, making
+	// them available to other processes and credential instances. The default, zero value means the
+	// credential will store tokens in memory and not share them with any other credential instance.
+	Cache Cache
+
 	// ClientID of the service principal. Defaults to the value of the environment variable AZURE_CLIENT_ID.
 	ClientID string
+
 	// DisableInstanceDiscovery should be set true only by applications authenticating in disconnected clouds, or
 	// private clouds such as Azure Stack. It determines whether the credential requests Microsoft Entra instance metadata
 	// from https://login.microsoft.com before authenticating. Setting this to true will skip this request, making
 	// the application responsible for ensuring the configured authority is valid and trustworthy.
 	DisableInstanceDiscovery bool
+
+	// enableAzureProxy determines whether the credential reads proxy configuration from environment variables. When
+	// this value is true and proxy configuration isn't present or this value is false, the credential will request
+	// tokens directly from Entra ID.
+	//
+	// The proxy feature is designed for applications that deploy to many clusters and clusters that host many
+	// applications. See the Azure Kubernetes Service identity bindings documentation for more information on when
+	// to set this option: https://learn.microsoft.com/azure/aks/identity-bindings-concepts
+	enableAzureProxy bool
+
 	// TenantID of the service principal. Defaults to the value of the environment variable AZURE_TENANT_ID.
 	TenantID string
+
 	// TokenFilePath is the path of a file containing a Kubernetes service account token. Defaults to the value of the
 	// environment variable AZURE_FEDERATED_TOKEN_FILE.
 	TokenFilePath string
@@ -78,13 +94,22 @@ func NewWorkloadIdentityCredential(options *WorkloadIdentityCredentialOptions) (
 			return nil, errors.New("no tenant ID specified. Check pod configuration or set TenantID in the options")
 		}
 	}
+
 	w := WorkloadIdentityCredential{file: file, mtx: &sync.RWMutex{}}
-	caco := ClientAssertionCredentialOptions{
+	caco := &ClientAssertionCredentialOptions{
 		AdditionallyAllowedTenants: options.AdditionallyAllowedTenants,
+		Cache:                      options.Cache,
 		ClientOptions:              options.ClientOptions,
 		DisableInstanceDiscovery:   options.DisableInstanceDiscovery,
 	}
-	cred, err := NewClientAssertionCredential(tenantID, clientID, w.getAssertion, &caco)
+
+	if options.enableAzureProxy {
+		if err := customtokenproxy.Configure(&caco.ClientOptions); err != nil {
+			return nil, err
+		}
+	}
+
+	cred, err := NewClientAssertionCredential(tenantID, clientID, w.getAssertion, caco)
 	if err != nil {
 		return nil, err
 	}

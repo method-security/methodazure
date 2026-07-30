@@ -12,9 +12,9 @@
 
 </div>
 
-methodazure provides security operators with a number of data-rich AWS enumeration capabilities to help them gain visibility into their AWS environments. Designed with data-modeling and data-integration needs in mind, methodazure can be used on its own as an interactive CLI, orchestrated as part of a broader data pipeline, or leveraged from within the Method Platform.
+methodazure provides security operators with a number of data-rich Azure enumeration capabilities to help them gain visibility into their Azure environments. Designed with data-modeling and data-integration needs in mind, methodazure can be used on its own as an interactive CLI, orchestrated as part of a broader data pipeline, or leveraged from within the Method Platform.
 
-The number of security-relevant AWS resources that methodazure can enumerate are constantly growing. For the most up to date listing, please see the documentation [here](./docs/index.md)
+The number of security-relevant Azure resources that methodazure can enumerate are constantly growing. For the most up to date listing, please see the documentation [here](./docs/index.md)
 
 To learn more about methodazure, please see the [Documentation site](https://method-security.github.io/methodazure/) for the most detailed information.
 
@@ -31,13 +31,27 @@ For the full list of available installation options, please see the [Installatio
 
 ### Authentication
 
-methodazure is built using the AWS Go SDK and leverages the same AWS Credentials that are used by the AWS CLI. Specifically, it looks for the proper environment variables to be exported with credential information. For more information, please see the AWS documentation on how to [export AWS credentials as environment variables](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
+methodazure is built using the [Azure SDK for Go](https://github.com/Azure/azure-sdk-for-go) and authenticates with `DefaultAzureCredential`, which walks the standard Azure credential chain — environment variables, workload and managed identity, and a signed-in Azure CLI session. For more information, see Microsoft's [Authentication and the Azure SDK](https://devblogs.microsoft.com/azure-sdk/authentication-and-the-azure-sdk/).
+
+`AZURE_TENANT_ID` must be exported regardless of which link in the chain supplies the credential — methodazure exits with an error if it is unset. To authenticate as a service principal, export the client credentials alongside it:
+
+```bash
+export AZURE_TENANT_ID=<tenant-id>
+export AZURE_CLIENT_ID=<client-id>
+export AZURE_CLIENT_SECRET=<client-secret>
+```
+
+Sovereign clouds are selected with `--cloud-config` (`AzurePublic`, `AzureGovernment`, `AzureChina`); it defaults to `AzurePublic`.
 
 ### General Usage
 
 ```bash
 methodazure <resource> enumerate --subscription-id <id>
 ```
+
+Available resources: `aks`, `database`, `dns`, `entra`, `iam`, `loadbalancer`, `nsg`, `resourcegroup`, `storage`, `subscription`, `tenant`, `vm`, `vnet`.
+
+`subscription` and `tenant` enumerate what the credential can reach, so they take no `--subscription-id`. `entra` queries Microsoft Graph and accepts `--graph-service-endpoint`, which is defaulted from `--cloud-config`.
 
 #### Examples
 
@@ -46,7 +60,11 @@ methodazure storage enumerate --subscription-id <id>
 ```
 
 ```bash
-methodazure vm enumerate --subscription-id <id>
+methodazure vm enumerate --subscription-id <id> --output json
+```
+
+```bash
+methodazure subscription enumerate
 ```
 
 ## Contributing

@@ -2,18 +2,121 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.5.6](https://github.com/microsoft/kiota-http-go/compare/v1.5.5...v1.5.6) (2026-04-24)
 
-## [Unreleased]
 
-### Added
+### Bug Fixes
+
+* resolve build errors - non-constant format string and context leak ([c3bf426](https://github.com/microsoft/kiota-http-go/commit/c3bf426fb110f8ce7b1e8384d9ab10bde2f07317))
+
+## [1.5.5](https://github.com/microsoft/kiota-http-go/compare/v1.5.4...v1.5.5) (2026-03-02)
+
+
+### Bug Fixes
+
+* adding senstive headers scrub function ([fba6ba4](https://github.com/microsoft/kiota-http-go/commit/fba6ba4a45f41dab6389e16381876ab62123c638))
+* adding senstive headers scrub function ([39fa46c](https://github.com/microsoft/kiota-http-go/commit/39fa46c19038131f381eda945f3d724e4999befb))
+* adding senstive headers scrub function ([ce4f0dc](https://github.com/microsoft/kiota-http-go/commit/ce4f0dcb070d5236f1c017c22539fec4927360ec))
+* adding senstive headers scrub function ([e68b9e1](https://github.com/microsoft/kiota-http-go/commit/e68b9e1662f2b8bb3d771c66760f6fbf2ff80cf4))
+
+## [1.5.4](https://github.com/microsoft/kiota-http-go/compare/v1.5.3...v1.5.4) (2025-06-06)
+
+
+### Bug Fixes
+
+* retry handler exponential backoff ([#205](https://github.com/microsoft/kiota-http-go/issues/205)) ([2f2a350](https://github.com/microsoft/kiota-http-go/commit/2f2a3500e91531c248d1eb28997c4ca3bc361a85))
+
+## [1.5.3](https://github.com/microsoft/kiota-http-go/compare/v1.5.2...v1.5.3) (2025-04-03)
+
+
+### Bug Fixes
+
+* adding middleware with options errors with "unsupported option type" ([beeb32d](https://github.com/microsoft/kiota-http-go/commit/beeb32db1f6a5ebabfd4efdf66d701a6d12ed43f))
+
+## [1.5.2](https://github.com/microsoft/kiota-http-go/compare/v1.5.1...v1.5.2) (2025-04-02)
+
+
+### Bug Fixes
+
+* removes common go dependency ([42c2137](https://github.com/microsoft/kiota-http-go/commit/42c21377c7d3af3863bfcfcf28956cdaad99c850))
+* removes common go dependency ([df1bf28](https://github.com/microsoft/kiota-http-go/commit/df1bf281692b9b3dede2f1a845cb590c0a490717))
+
+## [1.5.1](https://github.com/microsoft/kiota-http-go/compare/v1.5.0...v1.5.1) (2025-03-24)
+
+
+### Bug Fixes
+
+* upgrades common go dependency to solve triming issues ([4a57c46](https://github.com/microsoft/kiota-http-go/commit/4a57c4687dec3e8d6801538c458cab19f47a480d))
+* upgrades common go dependency to solve triming issues ([d1aa07f](https://github.com/microsoft/kiota-http-go/commit/d1aa07f2a1b9c0d21f5808a8be41c65f236c8929))
+
+## [1.5.0](https://github.com/microsoft/kiota-http-go/compare/v1.4.7...v1.5.0) (2025-03-13)
+
+
+### Features
+
+* upgrades required go version from go1.18 to go 1.22 ([2e60cd5](https://github.com/microsoft/kiota-http-go/commit/2e60cd5800241b2c08b21ab523d9ffc216383db0))
+
+## [1.4.7] - 2024-12-13
 
 ### Changed
 
-## [1.3.1] - 2024-02-09
+- Updated HTTP span attributes to comply with updated OpenTelemetry semantic conventions. [#182](https://github.com/microsoft/kiota-http-go/issues/182)
 
-### Added
+## [1.4.6] - 2024-12-13
+
+### Changed
+
+- Fixed a bug where headers inspection handler would fail upon receiving an error.
+
+## [1.4.5] - 2024-09-03
+
+### Changed
+
+- Fixed a bug in compression middleware which caused empty body to send on retries
+
+## [1.4.4] - 2024-08-13
+
+### Changed
+
+- Added `http.request.resend_delay` as a span attribute for the retry handler
+- Changed the `http.retry_count` span attribute to `http.request.resend_count` to conform to OpenTelemetry specs.
+
+## [1.4.3] - 2024-07-22
+
+### Changed
+
+- Fixed a bug to prevent double request compression by the compression handler.
+
+## [1.4.2] - 2024-07-16
+
+### Changed
+
+- Prevent compression if Content-Range header is present.
+- Fix bug which leads to a missing Content-Length header.
+
+## [1.4.1] - 2024-05-09
+
+### Changed
+
+- Allow custom response handlers to return nil result values.
+
+## [1.4.0] - 2024-05-09
+
+- Support retry after as a date.
+
+## [1.3.3] - 2024-03-19
+
+- Fix bug where overriding http.DefaultTransport with an implementation other than http.Transport would result in an interface conversion panic
+
+### Changed
+
+## [1.3.2] - 2024-02-28
+
+### Changed
+
+- Fix bug with headers inspection handler using wrong key.
+
+## [1.3.1] - 2024-02-09
 
 ### Changed
 

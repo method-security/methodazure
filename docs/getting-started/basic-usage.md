@@ -1,6 +1,6 @@
 # Basic Usage
 
-Before you get started, you will need to export AWS credentials that you want methodazure to utilize as environment variables. For more documentation on how to do this, please see the Amazon documentation [here](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-envvars.html).
+Before you get started, you will need to make Azure credentials available to methodazure as environment variables. The section below covers what it looks for.
 
 ## Authentication
 

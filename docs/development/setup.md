@@ -2,7 +2,7 @@
 
 ## Adding a new capability
 
-To add a new AWS capability to methodazure, providing new enumeration capabilities to security operators everywhere, please see the [adding a new capability](./adding.md) page.
+To add a new Azure capability to methodazure, providing new enumeration capabilities to security operators everywhere, please see the [adding a new capability](./adding.md) page.
 
 ## Setting up your development environment
 
@@ -24,7 +24,7 @@ We can use godel to build our CLI locally by running
 ./godelw build
 ```
 
-You should see output in `out/build/methoaws/<version>/<os>-<arch>/methodazure`.
+You should see output in `out/build/methodazure/<version>/<os>-<arch>/methodazure`.
 
 If you'd like to clean this output up, you can run
 
