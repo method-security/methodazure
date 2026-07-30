@@ -53,7 +53,7 @@ func NewMethodAzure(version string) *MethodAzure {
 // that are used by all subcommands, such as the region, output format, and output file. It also initializes the
 // version command that prints the version of the CLI.
 // Critically, this sets the PersistentPreRunE and PersistentPostRunE functions that are inherited by all subcommands.
-// The PersistentPreRunE function is used to validate the region flag and set the AWS configuration. The PersistentPostRunE
+// The PersistentPreRunE function is used to validate the cloud-config flag and set the Azure configuration. The PersistentPostRunE
 // function is used to write the output of the command to the desired output format after the execution of the invoked
 // command's Run function.
 func (a *MethodAzure) InitRootCommand() {
