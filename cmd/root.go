@@ -66,6 +66,9 @@ func (a *MethodAzure) InitRootCommand() {
 		Short: "methodazure CLI",
 		Long:  `methodazure CLI`,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if isBuiltinCommand(cmd) {
+				return nil
+			}
 			tenantID := os.Getenv("AZURE_TENANT_ID")
 			if tenantID == "" {
 				return errors.New("AZURE_TENANT_ID environment variable is not set")
@@ -108,6 +111,9 @@ func (a *MethodAzure) InitRootCommand() {
 			return nil
 		},
 		PersistentPostRunE: func(cmd *cobra.Command, _ []string) error {
+			if isBuiltinCommand(cmd) {
+				return nil
+			}
 			completedAt := datetime.DateTime(time.Now())
 			a.OutputSignal.CompletedAt = &completedAt
 			return writer.Write(
@@ -142,6 +148,19 @@ func (a *MethodAzure) InitRootCommand() {
 	}
 
 	a.RootCmd.AddCommand(a.VersionCmd)
+}
+
+// isBuiltinCommand reports whether cmd is one of Cobra's generated help or
+// completion commands. They inherit the root's persistent hooks but never talk
+// to Azure and emit no signal, so running those hooks would demand credentials
+// and append a signal blob to the completion script.
+func isBuiltinCommand(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Name() == "help" || c.Name() == "completion" {
+			return true
+		}
+	}
+	return false
 }
 
 // A utility function to validate that the provided output format is one of the supported formats: json, yaml, signal.

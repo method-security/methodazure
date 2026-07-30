@@ -8,9 +8,11 @@ Hello and welcome to the methodazure documentation. While we always want to prov
 
 # About methodazure
 
-methodazure provides security operators with a number of data-rich Azure enumeration capabilities to help them gain visibility into their Azure environments. Designed with data-modeling and data-integration needs in mind, methodazure can be used on its own as an interactive CLI, orchestrated as part of a broader data pipeline, or leveraged from within the Method Platform.
+methodazure provides security operators with data-rich Azure enumeration capabilities to help them gain visibility into their Azure environments. Designed with data-modeling and data-integration needs in mind, methodazure can be used on its own as an interactive CLI, orchestrated as part of a broader data pipeline, or leveraged from within the Method Platform.
 
-The number of security-relevant Azure resources that methodazure can enumerate are constantly growing. For the most up to date listing, please see the documentation [here](./docs/index.md)
+> **methodazure is being rebuilt.** Its previous enumeration commands were retired so that new ones can be written against the current tool conventions. The CLI currently ships only its root scaffolding — `help`, `completion`, and `version` — and capabilities are being added back one at a time. The last release containing the retired commands is [v0.0.17](https://github.com/Method-Security/methodazure/releases/tag/v0.0.17).
+
+For the most up to date listing of what the tool can enumerate, please see the documentation [here](./docs/index.md)
 
 To learn more about methodazure, please see the [Documentation site](https://method-security.github.io/methodazure/) for the most detailed information.
 
@@ -41,27 +43,15 @@ Sovereign clouds are selected with `--cloud-config` (`AzurePublic`, `AzureGovern
 
 ### General Usage
 
-```bash
-methodazure <resource> enumerate --subscription-id <id>
-```
-
-Available resources: `aks`, `database`, `dns`, `entra`, `iam`, `loadbalancer`, `nsg`, `resourcegroup`, `storage`, `subscription`, `tenant`, `vm`, `vnet`.
-
-`subscription` and `tenant` enumerate what the credential can reach, so they take no `--subscription-id`. `entra` queries Microsoft Graph and accepts `--graph-service-endpoint`, which is defaulted from `--cloud-config`.
-
-#### Examples
+No enumeration commands ship today — see the note above. The root scaffolding is in place, so the CLI responds to:
 
 ```bash
-methodazure storage enumerate --subscription-id <id>
+methodazure --help
+methodazure version
+methodazure completion <bash|zsh|fish|powershell>
 ```
 
-```bash
-methodazure vm enumerate --subscription-id <id> --output json
-```
-
-```bash
-methodazure subscription enumerate
-```
+Authentication is only required once a command actually talks to Azure; `help`, `completion`, and `version` run without credentials.
 
 ## Contributing
 

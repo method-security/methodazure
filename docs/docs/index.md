@@ -1,15 +1,8 @@
 # Capabilities
 
-methodazure provides a number of capabilities to cyber security professionals working within Azure, spanning many of Microsoft's most important resource types. Each of the below pages will provide you with a more in depth look at the methodazure capabilities related the specified resource.
+methodazure is being rebuilt. Its previous enumeration commands were retired so that new ones can be written against the current tool conventions, so the CLI currently ships only its root scaffolding — `help`, `completion`, and `version`.
 
-- [AKS](./aks.md)
-- [Database](./database.md)
-- [DNS](./dns.md)
-- [NSG](./nsg.md)
-- [Resource Groups](./resourcegroup.md)
-- [Storage](./storage.md)
-- [VMs](./vm.md)
-- [VNet](./vnet.md)
+Capability pages will be added back here as each new command lands. The last release containing the retired commands is [v0.0.17](https://github.com/Method-Security/methodazure/releases/tag/v0.0.17).
 
 ## Top Level Flags
 
@@ -17,12 +10,12 @@ methodazure has several top level flags that can be used on any subcommand. Thes
 
 ```bash
 Flags:
-  -h, --help                     help for methodazure
-  -o, --output string            Output format (signal, json, yaml). Default value is signal (default "signal")
-  -f, --output-file string       Path to output file. If blank, will output to STDOUT
-  -q, --quiet                    Suppress output
-  -s, --subscription-id string   Azure subscription ID
-  -v, --verbose                  Verbose output
+  -c, --cloud-config string   Azure Cloud to use (AzurePublic, AzureGovernment, AzureChina) (default "AzurePublic")
+  -h, --help                  help for methodazure
+  -o, --output string         Output format (signal, json, yaml). Default value is signal (default "signal")
+  -f, --output-file string    Path to output file. If blank, will output to STDOUT
+  -q, --quiet                 Suppress output
+  -v, --verbose               Verbose output
 ```
 
 ## Version Command
