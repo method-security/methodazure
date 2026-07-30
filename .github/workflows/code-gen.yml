@@ -4,7 +4,7 @@ on:
   workflow_call:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   generate_fern_go:
@@ -12,11 +12,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Enable long paths in Git
-        run: git config --global core.longpaths true
-
       - name: Checkout code
-        uses: actions/checkout@v4.1.6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6.0.2
         with:
           fetch-depth: 0
 
@@ -24,12 +21,12 @@ jobs:
         run: npm install -g fern-api
 
       - name: Generate Fern Go Code
-        run: fern generate --group local
+        run: fern generate --group local --retry-rate-limited
         env:
           FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
 
       - name: Upload Fern Generated Code
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # ratchet:actions/upload-artifact@v7
         with:
           name: fern-generated-code
           path: generated/

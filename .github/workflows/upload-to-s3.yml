@@ -1,0 +1,44 @@
+name: 📦 Upload Release Assets to S3
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version to upload'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to upload (e.g., v0.0.58)'
+        required: false
+        type: string
+
+jobs:
+  upload-to-s3:
+    name: Upload Release Assets to S3
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # ratchet:actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: 🔑 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # ratchet:aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.CLI_S3_UPLOAD_ARN }}
+          aws-region: ${{ secrets.CLI_S3_UPLOAD_REGION }}
+
+      - name: Upload release assets to S3
+        run: ./scripts/upload-release-to-s3.sh
+        env:
+          S3_BUCKET_URL: ${{ secrets.CLI_S3_UPLOAD_URL }}
+          VERSION: ${{ inputs.version }}
