@@ -2,14 +2,74 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.4.1](https://github.com/microsoftgraph/msgraph-sdk-go-core/compare/v1.4.0...v1.4.1) (2026-05-14)
 
-## [Unreleased]
 
-### Added
+### Bug Fixes
 
-### Changed
+* **deps:** bump kiota and azcore dependencies ([#372](https://github.com/microsoftgraph/msgraph-sdk-go-core/issues/372)) ([a0ba535](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/a0ba535b08923091c1eda8d336ce6bf1a4112fc8))
+
+## [1.4.0](https://github.com/microsoftgraph/msgraph-sdk-go-core/compare/v1.3.2...v1.4.0) (2025-09-11)
+
+
+### Features
+
+* identity dep update ([e7d3b49](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/e7d3b4932d7b59092347221830d85ad53f30362b))
+
+## [1.3.2](https://github.com/microsoftgraph/msgraph-sdk-go-core/compare/v1.3.1...v1.3.2) (2025-04-02)
+
+
+### Bug Fixes
+
+* removes common go dependency ([5431c24](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/5431c242e5cee8130107c6978aa73d03ba1e08c6))
+* removes common go dependency ([e9d0a32](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/e9d0a3240562065ec3926841d03e7a29cd98d2fd))
+
+## [1.3.1](https://github.com/microsoftgraph/msgraph-sdk-go-core/compare/v1.3.0...v1.3.1) (2025-03-24)
+
+
+### Bug Fixes
+
+* upgrades common go dependency to solve triming issues ([3d78157](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/3d781577cb8e5776058df106d45a6b8e2731a11f))
+* upgrades common go dependency to solve triming issues ([f731ccc](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/f731ccc4e96fcfbdc2885f935bae4bf95b9c2900))
+
+## [1.3.0](https://github.com/microsoftgraph/msgraph-sdk-go-core/compare/v1.2.1...v1.3.0) (2025-03-13)
+
+
+### Features
+
+* upgrades required go version from go1.18 to go 1.22 ([6a25397](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/6a25397741b5b20ea899f2a5a4389dc130205168))
+
+## [1.2.1](https://github.com/microsoftgraph/msgraph-sdk-go-core/compare/v1.2.0...v1.2.1) (2024-08-26)
+
+
+### Bug Fixes
+
+* repeated slice uploading on large file upload task ([cb329cc](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/cb329cc395946a619cda5501da88dcda15d84d9b))
+
+## [1.2.0](https://github.com/microsoftgraph/msgraph-sdk-go-core/compare/v1.1.0...v1.2.0) (2024-07-15)
+
+
+### Features
+
+* add git release config ([69234a2](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/69234a236c1d212941e742593ce43d2a35a1212b))
+
+
+### Bug Fixes
+
+* allows registration of page iterator headers ([#309](https://github.com/microsoftgraph/msgraph-sdk-go-core/issues/309)) ([d4b0806](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/d4b0806dadcc3ccdf07a8eca8ca7b93150094d7f))
+* content range order during upload ([#304](https://github.com/microsoftgraph/msgraph-sdk-go-core/issues/304)) ([f241e94](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/f241e947b28de38e8f7bc8c3d4eb6eb95b9afbdb))
+
+## [1.1.0](https://github.com/microsoftgraph/msgraph-sdk-go-core/compare/v1.0.2...v1.1.0) (2024-07-10)
+
+
+### Features
+
+* add git release config ([69234a2](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/69234a236c1d212941e742593ce43d2a35a1212b))
+
+
+### Bug Fixes
+
+* content range order during upload ([#304](https://github.com/microsoftgraph/msgraph-sdk-go-core/issues/304)) ([f241e94](https://github.com/microsoftgraph/msgraph-sdk-go-core/commit/f241e947b28de38e8f7bc8c3d4eb6eb95b9afbdb))
 
 ## [1.1.0] - 2024-02-02
 

@@ -1,6 +1,3 @@
-//go:build go1.18
-// +build go1.18
-
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
@@ -12,12 +9,26 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/internal/errorinfo"
 	msal "github.com/AzureAD/microsoft-authentication-library-for-go/apps/errors"
 )
+
+// tsgAnchors maps credential type names to sections of the troubleshooting
+// guide at https://aka.ms/azsdk/go/identity/troubleshoot
+var tsgAnchors = map[string]string{
+	credNameAzureCLI:          "azure-cli",
+	credNameAzureDeveloperCLI: "azd",
+	credNameAzurePipelines:    "apc",
+	credNameAzurePowerShell:   "azure-pwsh",
+	credNameCert:              "client-cert",
+	credNameManagedIdentity:   "managed-id",
+	credNameSecret:            "client-secret",
+	credNameWorkloadIdentity:  "workload",
+}
 
 // getResponseFromError retrieves the response carried by
 // an AuthenticationFailedError or MSAL CallErr, if any
@@ -38,19 +49,42 @@ type AuthenticationFailedError struct {
 	// RawResponse is the HTTP response motivating the error, if available.
 	RawResponse *http.Response
 
-	credType string
-	message  string
-	err      error
+	credType, message string
+	omitResponse      bool
 }
 
-func newAuthenticationFailedError(credType string, message string, resp *http.Response, err error) error {
-	return &AuthenticationFailedError{credType: credType, message: message, RawResponse: resp, err: err}
+func newAuthenticationFailedError(credType, message string, resp *http.Response) error {
+	return &AuthenticationFailedError{credType: credType, message: message, RawResponse: resp}
+}
+
+// newAuthenticationFailedErrorFromMSAL creates an AuthenticationFailedError from an MSAL error.
+// If the error is an MSAL CallErr, the new error includes an HTTP response and not the MSAL error
+// message, because that message is redundant given the response. If the original error isn't a
+// CallErr, the returned error incorporates its message.
+func newAuthenticationFailedErrorFromMSAL(credType string, err error) error {
+	msg := ""
+	res := getResponseFromError(err)
+	if res == nil {
+		msg = err.Error()
+	}
+	return newAuthenticationFailedError(credType, msg, res)
 }
 
 // Error implements the error interface. Note that the message contents are not contractual and can change over time.
 func (e *AuthenticationFailedError) Error() string {
-	if e.RawResponse == nil {
-		return e.credType + ": " + e.message
+	link := ""
+	if anchor, ok := tsgAnchors[e.credType]; ok {
+		link = "To troubleshoot, visit https://aka.ms/azsdk/go/identity/troubleshoot#" + anchor
+	}
+	if e.RawResponse == nil || e.omitResponse {
+		if link != "" {
+			prefix := " "
+			if !strings.HasSuffix(e.message, ".") {
+				prefix = ". "
+			}
+			link = prefix + link
+		}
+		return e.credType + ": " + e.message + link
 	}
 	msg := &bytes.Buffer{}
 	fmt.Fprintf(msg, "%s authentication failed. %s\n", e.credType, e.message)
@@ -62,7 +96,7 @@ func (e *AuthenticationFailedError) Error() string {
 		fmt.Fprintln(msg, "Request information not available")
 	}
 	fmt.Fprintln(msg, "--------------------------------------------------------------------------------")
-	fmt.Fprintf(msg, "RESPONSE %s\n", e.RawResponse.Status)
+	fmt.Fprintf(msg, "RESPONSE %d: %s\n", e.RawResponse.StatusCode, e.RawResponse.Status)
 	fmt.Fprintln(msg, "--------------------------------------------------------------------------------")
 	body, err := runtime.Payload(e.RawResponse)
 	switch {
@@ -76,27 +110,10 @@ func (e *AuthenticationFailedError) Error() string {
 	default:
 		fmt.Fprint(msg, "Response contained no body")
 	}
-	fmt.Fprintln(msg, "\n--------------------------------------------------------------------------------")
-	var anchor string
-	switch e.credType {
-	case credNameAzureCLI:
-		anchor = "azure-cli"
-	case credNameAzureDeveloperCLI:
-		anchor = "azd"
-	case credNameCert:
-		anchor = "client-cert"
-	case credNameSecret:
-		anchor = "client-secret"
-	case credNameManagedIdentity:
-		anchor = "managed-id"
-	case credNameUserPassword:
-		anchor = "username-password"
-	case credNameWorkloadIdentity:
-		anchor = "workload"
+	if link != "" {
+		link = "\n" + link
 	}
-	if anchor != "" {
-		fmt.Fprintf(msg, "To troubleshoot, visit https://aka.ms/azsdk/go/identity/troubleshoot#%s", anchor)
-	}
+	fmt.Fprint(msg, "\n--------------------------------------------------------------------------------"+link)
 	return msg.String()
 }
 
@@ -107,17 +124,17 @@ func (*AuthenticationFailedError) NonRetriable() {
 
 var _ errorinfo.NonRetriable = (*AuthenticationFailedError)(nil)
 
-// authenticationRequiredError indicates a credential's Authenticate method must be called to acquire a token
+// AuthenticationRequiredError indicates a credential's Authenticate method must be called to acquire a token
 // because the credential requires user interaction and is configured not to request it automatically.
-type authenticationRequiredError struct {
+type AuthenticationRequiredError struct {
 	credentialUnavailableError
 
 	// TokenRequestOptions for the required token. Pass this to the credential's Authenticate method.
 	TokenRequestOptions policy.TokenRequestOptions
 }
 
-func newauthenticationRequiredError(credType string, tro policy.TokenRequestOptions) error {
-	return &authenticationRequiredError{
+func newAuthenticationRequiredError(credType string, tro policy.TokenRequestOptions) error {
+	return &AuthenticationRequiredError{
 		credentialUnavailableError: credentialUnavailableError{
 			credType + " can't acquire a token without user interaction. Call Authenticate to authenticate a user interactively",
 		},
@@ -126,8 +143,8 @@ func newauthenticationRequiredError(credType string, tro policy.TokenRequestOpti
 }
 
 var (
-	_ credentialUnavailable  = (*authenticationRequiredError)(nil)
-	_ errorinfo.NonRetriable = (*authenticationRequiredError)(nil)
+	_ credentialUnavailable  = (*AuthenticationRequiredError)(nil)
+	_ errorinfo.NonRetriable = (*AuthenticationRequiredError)(nil)
 )
 
 type credentialUnavailable interface {

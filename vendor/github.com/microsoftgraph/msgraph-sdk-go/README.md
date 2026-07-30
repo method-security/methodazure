@@ -6,7 +6,6 @@ Get started with the Microsoft Graph SDK for Go by integrating the [Microsoft Gr
 
 > **Note:** this SDK allows you to build applications using the [v1.0](https://docs.microsoft.com/graph/use-the-api#version) of Microsoft Graph. If you want to try the latest Microsoft Graph APIs under beta, use our [beta SDK](https://github.com/microsoftgraph/msgraph-beta-sdk-go) instead.
 >
-> **Note:** The Microsoft Graph Go SDK is currently in General Availability version starting from version 1.0.0. The SDK is considered stable, regular releases and updates to the SDK will however continue weekly..
 
 ## 1. Installation
 
@@ -94,7 +93,7 @@ func printOdataError(err error) {
 	case *odataerrors.ODataError:
 		typed := err.(*odataerrors.ODataError)
 		fmt.Printf("error:", typed.Error())
-		if terr := typed.GetError(); terr != nil {
+		if terr := typed.GetErrorEscaped(); terr != nil {
 			fmt.Printf("code: %s", *terr.GetCode())
 			fmt.Printf("msg: %s", *terr.GetMessage())
 		}
@@ -144,7 +143,7 @@ func printOdataError(err error) {
         case *odataerrors.ODataError:
                 typed := err.(*odataerrors.ODataError)
                 fmt.Printf("error: %s", typed.Error())
-                if terr := typed.GetError(); terr != nil {
+                if terr := typed.GetErrorEscaped(); terr != nil {
                         fmt.Printf("code: %s", *terr.GetCode())
                         fmt.Printf("msg: %s", *terr.GetMessage())
                 }
@@ -164,6 +163,10 @@ For more detailed documentation, see:
 * [Making requests](https://docs.microsoft.com/graph/sdks/create-requests)
 * [Known issues](https://github.com/MicrosoftGraph/msgraph-sdk-go/issues)
 * [Contributions](https://github.com/microsoftgraph/msgraph-sdk-go/blob/main/CONTRIBUTING.md)
+
+## 5. Update Schedule
+
+The Microsoft Graph Go Client Library is scheduled to be updated during the second and fourth week of each month
 
 ## 6. Issues
 

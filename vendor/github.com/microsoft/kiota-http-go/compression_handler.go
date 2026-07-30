@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"io"
 	"net/http"
+	"strings"
 
 	abstractions "github.com/microsoft/kiota-abstractions-go"
 	"go.opentelemetry.io/otel"
@@ -31,19 +32,31 @@ var compressKey = abstractions.RequestOptionKey{Key: "CompressionHandler"}
 
 // NewCompressionHandler creates an instance of a compression middleware
 func NewCompressionHandler() *CompressionHandler {
-	options := NewCompressionOptions(true)
-	return NewCompressionHandlerWithOptions(options)
+	options := NewCompressionOptionsReference(true)
+	return NewCompressionHandlerWithOptions(*options)
 }
 
-// NewCompressionHandlerWithOptions creates an instance of the compression middlerware with
+// NewCompressionHandlerWithOptions creates an instance of the compression middleware with
 // specified configurations.
 func NewCompressionHandlerWithOptions(option CompressionOptions) *CompressionHandler {
 	return &CompressionHandler{options: option}
 }
 
 // NewCompressionOptions creates a configuration object for the CompressionHandler
+//
+// Deprecated: This function is deprecated, and superseded by NewCompressionOptionsReference,
+// which returns a pointer instead of plain value.
 func NewCompressionOptions(enableCompression bool) CompressionOptions {
 	return CompressionOptions{enableCompression: enableCompression}
+}
+
+// NewCompressionOptionsReference creates a configuration object for the CompressionHandler.
+//
+// This function supersedes the NewCompressionOptions function and returns a pointer,
+// which is expected by GetDefaultMiddlewaresWithOptions.
+func NewCompressionOptionsReference(enableCompression bool) *CompressionOptions {
+	options := CompressionOptions{enableCompression: enableCompression}
+	return &options
 }
 
 // GetKey returns CompressionOptions unique name in context object
@@ -74,7 +87,7 @@ func (c *CompressionHandler) Intercept(pipeline Pipeline, middlewareIndex int, r
 		req = req.WithContext(ctx)
 	}
 
-	if !reqOption.ShouldCompress() || req.Body == nil {
+	if !reqOption.ShouldCompress() || contentRangeBytesIsPresent(req.Header) || contentEncodingIsPresent(req.Header) || req.Body == nil {
 		return pipeline.Next(req, middlewareIndex)
 	}
 	if span != nil {
@@ -103,7 +116,7 @@ func (c *CompressionHandler) Intercept(pipeline Pipeline, middlewareIndex int, r
 	req.ContentLength = int64(size)
 
 	if span != nil {
-		span.SetAttributes(attribute.Int64("http.request_content_length", req.ContentLength))
+		span.SetAttributes(httpRequestBodySizeAttribute.Int(int(req.ContentLength)))
 	}
 
 	// Sending request with compressed body
@@ -119,8 +132,8 @@ func (c *CompressionHandler) Intercept(pipeline Pipeline, middlewareIndex int, r
 		req.ContentLength = unCompressedContentLength
 
 		if span != nil {
-			span.SetAttributes(attribute.Int64("http.request_content_length", req.ContentLength),
-				attribute.Int("http.request_content_length", 415))
+			span.SetAttributes(httpRequestBodySizeAttribute.Int(int(req.ContentLength)),
+				httpResponseStatusCodeAttribute.Int(415))
 		}
 
 		return pipeline.Next(req, middlewareIndex)
@@ -129,7 +142,22 @@ func (c *CompressionHandler) Intercept(pipeline Pipeline, middlewareIndex int, r
 	return resp, nil
 }
 
-func compressReqBody(reqBody []byte) (io.ReadCloser, int, error) {
+func contentRangeBytesIsPresent(header http.Header) bool {
+	contentRanges, _ := header["Content-Range"]
+	for _, contentRange := range contentRanges {
+		if strings.Contains(strings.ToLower(contentRange), "bytes") {
+			return true
+		}
+	}
+	return false
+}
+
+func contentEncodingIsPresent(header http.Header) bool {
+	_, ok := header["Content-Encoding"]
+	return ok
+}
+
+func compressReqBody(reqBody []byte) (io.ReadSeekCloser, int, error) {
 	var buffer bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buffer)
 	if _, err := gzipWriter.Write(reqBody); err != nil {
@@ -140,5 +168,6 @@ func compressReqBody(reqBody []byte) (io.ReadCloser, int, error) {
 		return nil, 0, err
 	}
 
-	return io.NopCloser(&buffer), buffer.Len(), nil
+	reader := bytes.NewReader(buffer.Bytes())
+	return NopCloser(reader), buffer.Len(), nil
 }

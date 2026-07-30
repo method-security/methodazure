@@ -5,10 +5,14 @@
 package signal
 
 import (
+	"context"
 	"encoding/base64"
+	"fmt"
+	"time"
 
 	"github.com/palantir/pkg/datetime"
 	"github.com/palantir/pkg/safejson"
+	"github.com/palantir/witchcraft-go-logging/wlog/svclog/svc1log"
 )
 
 type Signal struct {
@@ -19,10 +23,17 @@ type Signal struct {
 	ErrorMessage *string            `json:"error_message,omitempty" yaml:"error_message,omitempty"`
 }
 
-func NewSignal(content any, startedAt datetime.DateTime, completedAt *datetime.DateTime, status int, errorMessage *string) Signal {
+func NewSignal(content any, startedAt *datetime.DateTime, completedAt *datetime.DateTime, status int, errorMessage *string) Signal {
+	var startedAtTime datetime.DateTime
+	if startedAt == nil {
+		startedAtTime = datetime.DateTime(time.Now())
+	} else {
+		startedAtTime = *startedAt
+	}
+
 	return Signal{
 		Content:      content,
-		StartedAt:    startedAt,
+		StartedAt:    startedAtTime,
 		CompletedAt:  completedAt,
 		Status:       status,
 		ErrorMessage: errorMessage,
@@ -37,4 +48,21 @@ func (s *Signal) EncodeContent() error {
 	encoded := base64.StdEncoding.EncodeToString(data)
 	s.Content = encoded
 	return nil
+}
+
+func (s *Signal) AddError(err error) {
+	if s.ErrorMessage == nil {
+		s.ErrorMessage = new(string)
+		*s.ErrorMessage = err.Error()
+	} else {
+		*s.ErrorMessage += fmt.Sprintf(" %s", err.Error())
+	}
+	s.Status = 1
+}
+
+func (s *Signal) PanicHandler(ctx context.Context) {
+	if r := recover(); r != nil {
+		svc1log.FromContext(ctx).Error(fmt.Sprintf("panic: %v", r))
+		s.AddError(fmt.Errorf("panic: %v", r))
+	}
 }
