@@ -2,14 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.1.3](https://github.com/microsoft/kiota-serialization-form-go/compare/v1.1.2...v1.1.3) (2026-03-13)
 
-## [Unreleased]
 
-### Added
+### Bug Fixes
 
-### Changed
+* reduce parse node allocations when deserializing primitive types collections ([d871ef8](https://github.com/microsoft/kiota-serialization-form-go/commit/d871ef8be0272296fb53389725ca01516d188599))
+
+
+### Performance Improvements
+
+* extract private helpers and avoid parse node allocations in primitive collection deserialization ([ba61e0b](https://github.com/microsoft/kiota-serialization-form-go/commit/ba61e0bb7331cf8a563317b6d9d79a95582c2dfc))
+* reduce parse node allocations when deserializing primitive types ([61219f6](https://github.com/microsoft/kiota-serialization-form-go/commit/61219f6d0054f12523acc89e87bfff7b07a5e36e))
+
+## [1.1.2](https://github.com/microsoft/kiota-serialization-form-go/compare/v1.1.1...v1.1.2) (2025-04-02)
+
+
+### Bug Fixes
+
+* removes common go dependency ([ce7bc35](https://github.com/microsoft/kiota-serialization-form-go/commit/ce7bc35ef5af4073244de8bdab87332dd4897864))
+* removes common go dependency ([1265450](https://github.com/microsoft/kiota-serialization-form-go/commit/1265450a46777d7fd22500f782e587f9eae85217))
+
+## [1.1.1](https://github.com/microsoft/kiota-serialization-form-go/compare/v1.1.0...v1.1.1) (2025-03-24)
+
+
+### Bug Fixes
+
+* upgrades common go dependency to solve triming issues ([d3e8da1](https://github.com/microsoft/kiota-serialization-form-go/commit/d3e8da1ce7cae10758a8874373cf656a8bee7645))
+* upgrades common go dependency to solve triming issues ([6dda99a](https://github.com/microsoft/kiota-serialization-form-go/commit/6dda99ae94e501484e486ea907f682fb2ee7100f))
+
+## [1.1.0](https://github.com/microsoft/kiota-serialization-form-go/compare/v1.0.0...v1.1.0) (2025-03-13)
+
+
+### Features
+
+* upgrades required go version from go1.18 to go 1.22 ([d92bfde](https://github.com/microsoft/kiota-serialization-form-go/commit/d92bfdea60153a0cc1f7e38b23db33a313a6fd46))
 
 ## [1.0.0] - 2023-05-04
 

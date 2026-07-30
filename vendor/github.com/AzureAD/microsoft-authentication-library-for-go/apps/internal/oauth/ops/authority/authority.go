@@ -14,20 +14,23 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	msalerrors "github.com/AzureAD/microsoft-authentication-library-for-go/apps/errors"
 )
 
 const (
 	authorizationEndpoint             = "https://%v/%v/oauth2/v2.0/authorize"
-	instanceDiscoveryEndpoint         = "https://%v/common/discovery/instance"
+	aadInstanceDiscoveryEndpoint      = "https://%v/common/discovery/instance"
 	tenantDiscoveryEndpointWithRegion = "https://%s.%s/%s/v2.0/.well-known/openid-configuration"
 	regionName                        = "REGION_NAME"
-	defaultAPIVersion                 = "2021-10-01"
-	imdsEndpoint                      = "http://169.254.169.254/metadata/instance/compute/location?format=text&api-version=" + defaultAPIVersion
+	defaultAPIVersion                 = "2021-02-01"
+	imdsEndpoint                      = "http://169.254.169.254/metadata/instance/compute?api-version=" + defaultAPIVersion
 	autoDetectRegion                  = "TryAutoDetect"
 	AccessTokenTypeBearer             = "Bearer"
 )
@@ -41,19 +44,31 @@ const (
 	loginMicrosoftOnline = defaultHost
 )
 
+// validRegion matches Azure region names: lowercase alphanumeric and hyphens only.
+var validRegion = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
 // jsonCaller is an interface that allows us to mock the JSONCall method.
 type jsonCaller interface {
 	JSONCall(ctx context.Context, endpoint string, headers http.Header, qv url.Values, body, resp interface{}) error
 }
 
+// For backward compatibility, accept both old and new China endpoints for a transition period.
+// This list is derived from the AAD instance discovery metadata and represents all known trusted hosts
+// across different Azure clouds (Public, China, Germany, US Government, etc.)
 var aadTrustedHostList = map[string]bool{
-	"login.windows.net":            true, // Microsoft Azure Worldwide - Used in validation scenarios where host is not this list
-	"login.chinacloudapi.cn":       true, // Microsoft Azure China
-	"login.microsoftonline.de":     true, // Microsoft Azure Blackforest
-	"login-us.microsoftonline.com": true, // Microsoft Azure US Government - Legacy
-	"login.microsoftonline.us":     true, // Microsoft Azure US Government
-	"login.microsoftonline.com":    true, // Microsoft Azure Worldwide
-	"login.cloudgovapi.us":         true, // Microsoft Azure US Government
+	"login.windows.net":                true, // Microsoft Azure Worldwide - Used in validation scenarios where host is not this list
+	"login.partner.microsoftonline.cn": true, // Microsoft Azure China (new)
+	"login.chinacloudapi.cn":           true, // Microsoft Azure China (legacy, backward compatibility)
+	"login.microsoftonline.de":         true, // Microsoft Azure Blackforest
+	"login-us.microsoftonline.com":     true, // Microsoft Azure US Government - Legacy
+	"login.microsoftonline.us":         true, // Microsoft Azure US Government
+	"login.microsoftonline.com":        true, // Microsoft Azure Worldwide
+	"login.microsoft.com":              true,
+	"sts.windows.net":                  true,
+	"login.usgovcloudapi.net":          true,
+	"login.sovcloud-identity.fr":       true, // Bleu (France sovereign cloud)
+	"login.sovcloud-identity.de":       true, // Delos (Germany sovereign cloud)
+	"login.sovcloud-identity.sg":       true, // GovSG (Singapore sovereign cloud)
 }
 
 // TrustedHost checks if an AAD host is trusted/valid.
@@ -99,6 +114,51 @@ func (r *TenantDiscoveryResponse) Validate() error {
 	return nil
 }
 
+// ValidateIssuerMatchesAuthority validates that the issuer in the TenantDiscoveryResponse matches the authority.
+// This is used to identity security or configuration issues in authorities and the OIDC endpoint
+func (r *TenantDiscoveryResponse) ValidateIssuerMatchesAuthority(authorityURI string, aliases map[string]bool) error {
+	if authorityURI == "" {
+		return errors.New("TenantDiscoveryResponse: empty authorityURI provided for validation")
+	}
+	if r.Issuer == "" {
+		return errors.New("TenantDiscoveryResponse: empty issuer in response")
+	}
+
+	issuerURL, err := url.Parse(r.Issuer)
+	if err != nil {
+		return fmt.Errorf("TenantDiscoveryResponse: failed to parse issuer URL: %w", err)
+	}
+	authorityURL, err := url.Parse(authorityURI)
+	if err != nil {
+		return fmt.Errorf("TenantDiscoveryResponse: failed to parse authority URL: %w", err)
+	}
+
+	// Fast path: exact scheme + host match
+	if issuerURL.Scheme == authorityURL.Scheme && issuerURL.Host == authorityURL.Host {
+		return nil
+	}
+
+	// Alias-based acceptance
+	if aliases != nil && aliases[issuerURL.Host] {
+		return nil
+	}
+
+	issuerHost := issuerURL.Host
+	authorityHost := authorityURL.Host
+
+	// Accept if issuer host is trusted
+	if TrustedHost(issuerHost) {
+		return nil
+	}
+
+	// Accept if authority is a regional variant ending with ".<issuerHost>"
+	if strings.HasSuffix(authorityHost, "."+issuerHost) {
+		return nil
+	}
+
+	return fmt.Errorf("TenantDiscoveryResponse: issuer '%s' does not match authority '%s' or any trusted/alias rule", r.Issuer, authorityURI)
+}
+
 type InstanceDiscoveryMetadata struct {
 	PreferredNetwork string   `json:"preferred_network"`
 	PreferredCache   string   `json:"preferred_cache"`
@@ -131,13 +191,18 @@ const (
 	ATRefreshToken
 	AccountByID
 	ATOnBehalfOf
+	ATUserFIC
 )
 
 // These are all authority types
 const (
 	AAD  = "MSSTS"
 	ADFS = "ADFS"
+	DSTS = "DSTS"
 )
+
+// DSTSTenant is referenced throughout multiple files, let us use a const in case we ever need to change it.
+const DSTSTenant = "7a433bfc-2514-4697-b467-e0933190487f"
 
 // AuthenticationScheme is an extensibility mechanism designed to be used only by Azure Arc for proof of possession access tokens.
 type AuthenticationScheme interface {
@@ -208,6 +273,11 @@ type AuthParams struct {
 	Capabilities ClientCapabilities
 	// Claims required for an access token to satisfy a conditional access policy
 	Claims string
+	// ClientClaims are client-originated claims set via the request-level WithClaimsFromClient option.
+	// Unlike Claims (server-issued challenge claims, which bypass the cache), ClientClaims participate
+	// in the token cache and are keyed on the raw claims string as passed by the caller. They are merged
+	// with Claims and Capabilities into the request's "claims" parameter.
+	ClientClaims string
 	// KnownAuthorityHosts don't require metadata discovery because they're known to the user
 	KnownAuthorityHosts []string
 	// LoginHint is a username with which to pre-populate account selection during interactive auth
@@ -216,6 +286,21 @@ type AuthParams struct {
 	DomainHint string
 	// AuthnScheme is an optional scheme for formatting access tokens
 	AuthnScheme AuthenticationScheme
+	// ExtraBodyParameters are additional parameters to include in token requests.
+	// The functions are evaluated at request time to get the parameter values.
+	// These parameters are also included in the cache key.
+	ExtraBodyParameters map[string]string
+	// CacheKeyComponents are additional components to include in the cache key.
+	CacheKeyComponents map[string]string
+	// IsAppTokenCache indicates the request targets the app-only (client credentials)
+	// token cache partition. It is propagated onto silent requests so the proactive-refresh
+	// write-back computes the same partition key as the read path, even though
+	// AcquireTokenSilent overrides AuthorizationType to ATRefreshToken. See issue #630.
+	IsAppTokenCache bool
+	// UserFederatedIdentityCredential is the federated credential token for user_fic flow.
+	UserFederatedIdentityCredential string
+	// UserObjectID is the target user's object ID for user_fic flow (mutually exclusive with Username).
+	UserObjectID string
 }
 
 // NewAuthParams creates an authorization parameters object.
@@ -236,23 +321,30 @@ func NewAuthParams(clientID string, authorityInfo Info) AuthParams {
 //   - the client is configured to authenticate only Microsoft accounts via the "consumers" endpoint
 //   - the resulting authority URL is invalid
 func (p AuthParams) WithTenant(ID string) (AuthParams, error) {
-	switch ID {
-	case "", p.AuthorityInfo.Tenant:
-		// keep the default tenant because the caller didn't override it
+	if ID == "" || ID == p.AuthorityInfo.Tenant {
 		return p, nil
-	case "common", "consumers", "organizations":
-		if p.AuthorityInfo.AuthorityType == AAD {
+	}
+
+	var authority string
+	switch p.AuthorityInfo.AuthorityType {
+	case AAD:
+		if ID == "common" || ID == "consumers" || ID == "organizations" {
 			return p, fmt.Errorf(`tenant ID must be a specific tenant, not "%s"`, ID)
 		}
-		// else we'll return a better error below
+		if p.AuthorityInfo.Tenant == "consumers" {
+			return p, errors.New(`client is configured to authenticate only personal Microsoft accounts, via the "consumers" endpoint`)
+		}
+		authority = (&url.URL{
+			Scheme: "https",
+			Host:   p.AuthorityInfo.Host,
+			Path:   "/",
+		}).ResolveReference(&url.URL{Path: ID}).String()
+	case ADFS:
+		return p, errors.New("ADFS authority doesn't support tenants")
+	case DSTS:
+		return p, errors.New("dSTS authority doesn't support tenants")
 	}
-	if p.AuthorityInfo.AuthorityType != AAD {
-		return p, errors.New("the authority doesn't support tenants")
-	}
-	if p.AuthorityInfo.Tenant == "consumers" {
-		return p, errors.New(`client is configured to authenticate only personal Microsoft accounts, via the "consumers" endpoint`)
-	}
-	authority := "https://" + path.Join(p.AuthorityInfo.Host, ID)
+
 	info, err := NewInfoFromAuthorityURI(authority, p.AuthorityInfo.ValidateAuthority, p.AuthorityInfo.InstanceDiscoveryDisabled)
 	if err == nil {
 		info.Region = p.AuthorityInfo.Region
@@ -261,9 +353,15 @@ func (p AuthParams) WithTenant(ID string) (AuthParams, error) {
 	return p, err
 }
 
-// MergeCapabilitiesAndClaims combines client capabilities and challenge claims into a value suitable for an authentication request's "claims" parameter.
+// MergeCapabilitiesAndClaims combines client capabilities, server-issued challenge claims and
+// client-originated claims into a value suitable for an authentication request's "claims" parameter.
 func (p AuthParams) MergeCapabilitiesAndClaims() (string, error) {
-	claims := p.Claims
+	// Combine server-issued claims (from WithClaims) with client-originated claims
+	// (from WithClaimsFromClient). When both set the same key, the client claims win.
+	claims, err := mergeClaims(p.Claims, p.ClientClaims)
+	if err != nil {
+		return "", err
+	}
 	if len(p.Capabilities.asMap) > 0 {
 		if claims == "" {
 			// without claims the result is simply the capabilities
@@ -285,6 +383,65 @@ func (p AuthParams) MergeCapabilitiesAndClaims() (string, error) {
 		claims = string(b)
 	}
 	return claims, nil
+}
+
+// mergeClaims merges two JSON claims objects into one. If either side is empty the other is returned
+// verbatim and unvalidated (the common case; this keeps the value byte-for-byte identical to what the
+// caller passed and mirrors MSAL .NET's MergeClaimsObjects). Only when both sides are present are they
+// parsed as JSON objects (anything that is not a JSON object is an error), deep-merged with the second
+// object's values winning on conflicting keys, and re-serialized.
+func mergeClaims(claims1, claims2 string) (string, error) {
+	if claims1 == "" {
+		return claims2, nil
+	}
+	if claims2 == "" {
+		return claims1, nil
+	}
+	m1, err := parseClaimsObject(claims1)
+	if err != nil {
+		return "", err
+	}
+	m2, err := parseClaimsObject(claims2)
+	if err != nil {
+		return "", err
+	}
+	b, err := json.Marshal(deepMergeClaims(m1, m2))
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// parseClaimsObject unmarshals a non-empty claims string into a JSON object. A value that is valid
+// JSON but not an object (e.g. an array, a scalar, or the literal "null") is rejected, mirroring the
+// behavior of the other MSAL libraries.
+func parseClaimsObject(claims string) (map[string]any, error) {
+	var m map[string]any
+	if err := json.Unmarshal([]byte(claims), &m); err != nil {
+		// Don't include the parser error or the raw value in the message: claims may carry sensitive data.
+		return nil, errors.New("claims must be a JSON object")
+	}
+	if m == nil {
+		return nil, errors.New("claims must be a JSON object")
+	}
+	return m, nil
+}
+
+// deepMergeClaims merges src into dst, with src's values winning on conflicting keys. When both
+// values for a key are JSON objects the merge recurses; otherwise src's value overwrites dst's.
+func deepMergeClaims(dst, src map[string]any) map[string]any {
+	for k, sv := range src {
+		if dv, ok := dst[k]; ok {
+			if dm, dok := dv.(map[string]any); dok {
+				if sm, sok := sv.(map[string]any); sok {
+					dst[k] = deepMergeClaims(dm, sm)
+					continue
+				}
+			}
+		}
+		dst[k] = sv
+	}
+	return dst
 }
 
 // merges a into b without overwriting b's values. Returns an error when a and b share a key for which either has a non-object value.
@@ -344,44 +501,59 @@ type Info struct {
 	Host                      string
 	CanonicalAuthorityURI     string
 	AuthorityType             string
-	UserRealmURIPrefix        string
 	ValidateAuthority         bool
 	Tenant                    string
 	Region                    string
 	InstanceDiscoveryDisabled bool
-}
-
-func firstPathSegment(u *url.URL) (string, error) {
-	pathParts := strings.Split(u.EscapedPath(), "/")
-	if len(pathParts) >= 2 {
-		return pathParts[1], nil
-	}
-
-	return "", errors.New(`authority must be an https URL such as "https://login.microsoftonline.com/<your tenant>"`)
+	// InstanceDiscoveryMetadata stores the metadata from AAD instance discovery
+	InstanceDiscoveryMetadata []InstanceDiscoveryMetadata
 }
 
 // NewInfoFromAuthorityURI creates an AuthorityInfo instance from the authority URL provided.
 func NewInfoFromAuthorityURI(authority string, validateAuthority bool, instanceDiscoveryDisabled bool) (Info, error) {
-	u, err := url.Parse(strings.ToLower(authority))
-	if err != nil || u.Scheme != "https" {
-		return Info{}, errors.New(`authority must be an https URL such as "https://login.microsoftonline.com/<your tenant>"`)
+
+	cannonicalAuthority := authority
+
+	// suffix authority with / if it doesn't have one
+	if !strings.HasSuffix(cannonicalAuthority, "/") {
+		cannonicalAuthority += "/"
 	}
 
-	tenant, err := firstPathSegment(u)
+	u, err := url.Parse(strings.ToLower(cannonicalAuthority))
+
 	if err != nil {
-		return Info{}, err
+		return Info{}, fmt.Errorf("couldn't parse authority url: %w", err)
 	}
+	if u.Scheme != "https" {
+		return Info{}, errors.New("authority url scheme must be https")
+	}
+
+	pathParts := strings.Split(u.EscapedPath(), "/")
+	if len(pathParts) < 3 {
+		return Info{}, errors.New(`authority must be an URL such as "https://login.microsoftonline.com/<your tenant>"`)
+	}
+
 	authorityType := AAD
-	if tenant == "adfs" {
+	tenant := pathParts[1]
+	switch tenant {
+	case "adfs":
 		authorityType = ADFS
+	case "dstsv2":
+		if len(pathParts) != 4 {
+			return Info{}, fmt.Errorf("dSTS authority must be an https URL such as https://<authority>/dstsv2/%s", DSTSTenant)
+		}
+		if pathParts[2] != DSTSTenant {
+			return Info{}, fmt.Errorf("dSTS authority only accepts a single tenant %q", DSTSTenant)
+		}
+		authorityType = DSTS
+		tenant = DSTSTenant
 	}
 
 	// u.Host includes the port, if any, which is required for private cloud deployments
 	return Info{
 		Host:                      u.Host,
-		CanonicalAuthorityURI:     fmt.Sprintf("https://%v/%v/", u.Host, tenant),
+		CanonicalAuthorityURI:     cannonicalAuthority,
 		AuthorityType:             authorityType,
-		UserRealmURIPrefix:        fmt.Sprintf("https://%v/common/userrealm/", u.Hostname()),
 		ValidateAuthority:         validateAuthority,
 		Tenant:                    tenant,
 		InstanceDiscoveryDisabled: instanceDiscoveryDisabled,
@@ -502,6 +674,9 @@ func (c Client) AADInstanceDiscovery(ctx context.Context, authorityInfo Info) (I
 		region = detectRegion(ctx)
 	}
 	if region != "" {
+		if !validRegion.MatchString(region) {
+			return resp, fmt.Errorf("invalid region %q: region must contain only lowercase alphanumeric characters and hyphens", region)
+		}
 		environment := authorityInfo.Host
 		switch environment {
 		case loginMicrosoft, loginWindows, loginSTSWindows, defaultHost:
@@ -525,8 +700,16 @@ func (c Client) AADInstanceDiscovery(ctx context.Context, authorityInfo Info) (I
 			discoveryHost = authorityInfo.Host
 		}
 
-		endpoint := fmt.Sprintf(instanceDiscoveryEndpoint, discoveryHost)
+		endpoint := fmt.Sprintf(aadInstanceDiscoveryEndpoint, discoveryHost)
 		err = c.Comm.JSONCall(ctx, endpoint, http.Header{}, qv, nil, &resp)
+		if err != nil {
+			var callErr msalerrors.CallErr
+			if errors.As(err, &callErr) && callErr.Resp != nil && callErr.Resp.StatusCode == http.StatusBadRequest {
+				if strings.Contains(callErr.Err.Error(), "invalid_instance") {
+					return resp, fmt.Errorf("invalid_instance: the authority host is not valid: %w", err)
+				}
+			}
+		}
 	}
 	return resp, err
 }
@@ -543,22 +726,41 @@ func detectRegion(ctx context.Context) string {
 	client := http.Client{
 		Timeout: time.Duration(2 * time.Second),
 	}
-	req, _ := http.NewRequest("GET", imdsEndpoint, nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, imdsEndpoint, nil)
 	req.Header.Set("Metadata", "true")
 	resp, err := client.Do(req)
+	if err == nil {
+		defer resp.Body.Close()
+	}
 	// If the request times out or there is an error, it is retried once
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil || resp.StatusCode != http.StatusOK {
 		resp, err = client.Do(req)
-		if err != nil || resp.StatusCode != 200 {
+		if err != nil || resp.StatusCode != http.StatusOK {
 			return ""
 		}
 	}
-	defer resp.Body.Close()
 	response, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return ""
 	}
-	return string(response)
+	return parseRegionFromIMDSResponse(response)
+}
+
+// imdsComputeResponse models the subset of the IMDS compute metadata response
+// (http://169.254.169.254/metadata/instance/compute) used for region detection.
+type imdsComputeResponse struct {
+	Location string `json:"location"`
+}
+
+// parseRegionFromIMDSResponse extracts the Azure region from an IMDS compute
+// metadata JSON response body. It returns an empty string when the body cannot
+// be parsed or the location field is absent.
+func parseRegionFromIMDSResponse(body []byte) string {
+	var parsed imdsComputeResponse
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return ""
+	}
+	return parsed.Location
 }
 
 func (a *AuthParams) CacheKey(isAppCache bool) string {
@@ -568,7 +770,7 @@ func (a *AuthParams) CacheKey(isAppCache bool) string {
 	if a.AuthorizationType == ATClientCredentials || isAppCache {
 		return a.AppKey()
 	}
-	if a.AuthorizationType == ATRefreshToken || a.AuthorizationType == AccountByID {
+	if a.AuthorizationType == ATRefreshToken || a.AuthorizationType == AccountByID || a.AuthorizationType == ATUserFIC {
 		return a.HomeAccountID
 	}
 	return ""
@@ -582,8 +784,47 @@ func (a *AuthParams) AssertionHash() string {
 }
 
 func (a *AuthParams) AppKey() string {
+	baseKey := a.ClientID + "_"
 	if a.AuthorityInfo.Tenant != "" {
-		return fmt.Sprintf("%s_%s_AppTokenCache", a.ClientID, a.AuthorityInfo.Tenant)
+		baseKey += a.AuthorityInfo.Tenant
 	}
-	return fmt.Sprintf("%s__AppTokenCache", a.ClientID)
+
+	// Include extra body parameters in the cache key
+	paramHash := a.CacheExtKeyGenerator()
+	if paramHash != "" {
+		baseKey = fmt.Sprintf("%s_%s", baseKey, paramHash)
+	}
+
+	return baseKey + "_AppTokenCache"
+}
+
+// CacheExtKeyGenerator computes a hash of the Cache key components key and values
+// to include in the cache key. This ensures tokens acquired with different
+// parameters are cached separately.
+func (a *AuthParams) CacheExtKeyGenerator() string {
+	if len(a.CacheKeyComponents) == 0 {
+		return ""
+	}
+
+	// Sort keys to ensure consistent hashing
+	keys := make([]string, 0, len(a.CacheKeyComponents))
+	for k := range a.CacheKeyComponents {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Concatenate length-prefixed key/value pairs so the boundaries between
+	// components are unambiguous. A plain key+value concatenation with no
+	// separators can collide when a value happens to contain another component's
+	// key or value (client_claims, for example, is arbitrary caller-supplied
+	// JSON), which would map two distinct component sets to the same hash and
+	// return the wrong cached token. Length prefixes make the encoding injective.
+	var sb strings.Builder
+	for _, key := range keys {
+		val := a.CacheKeyComponents[key]
+		fmt.Fprintf(&sb, "%d:%s%d:%s", len(key), key, len(val), val)
+	}
+
+	hash := sha256.Sum256([]byte(sb.String()))
+	return strings.ToLower(base64.RawURLEncoding.EncodeToString(hash[:]))
 }

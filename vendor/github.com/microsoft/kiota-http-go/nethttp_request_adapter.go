@@ -148,15 +148,15 @@ func (a *NetHttpRequestAdapter) getHttpResponseMessage(ctx context.Context, requ
 		contentLenHeader := response.Header.Get("Content-Length")
 		if contentLenHeader != "" {
 			contentLen, _ := strconv.Atoi(contentLenHeader)
-			spanForAttributes.SetAttributes(attribute.Int("http.response_content_length", contentLen))
+			spanForAttributes.SetAttributes(httpResponseBodySizeAttribute.Int(contentLen))
 		}
 		contentTypeHeader := response.Header.Get("Content-Type")
 		if contentTypeHeader != "" {
-			spanForAttributes.SetAttributes(attribute.String("http.response_content_type", contentTypeHeader))
+			spanForAttributes.SetAttributes(httpResponseHeaderContentTypeAttribute.String(contentTypeHeader))
 		}
 		spanForAttributes.SetAttributes(
-			attribute.Int("http.status_code", response.StatusCode),
-			attribute.String("http.flavor", response.Proto),
+			httpResponseStatusCodeAttribute.Int(response.StatusCode),
+			networkProtocolNameAttribute.String(response.Proto),
 		)
 	}
 	return a.retryCAEResponseIfRequired(ctx, response, requestInfo, claims, spanForAttributes)
@@ -177,7 +177,7 @@ func (a *NetHttpRequestAdapter) retryCAEResponseIfRequired(ctx context.Context, 
 		authenticateHeaderVal := response.Header.Get("WWW-Authenticate")
 		if authenticateHeaderVal != "" && reBearer.Match([]byte(authenticateHeaderVal)) {
 			span.AddEvent(AuthenticateChallengedEventKey)
-			spanForAttributes.SetAttributes(attribute.Int("http.retry_count", 1))
+			spanForAttributes.SetAttributes(httpRequestResendCountAttribute.Int(1))
 			responseClaims := ""
 			parametersRaw := string(reBearer.ReplaceAll([]byte(authenticateHeaderVal), []byte("")))
 			parameters := strings.Split(parametersRaw, ",")
@@ -209,14 +209,15 @@ func (a *NetHttpRequestAdapter) setBaseUrlForRequestInformation(requestInfo *abs
 	requestInfo.PathParameters["baseurl"] = a.GetBaseUrl()
 }
 
-func (a *NetHttpRequestAdapter) prepareContext(ctx context.Context, requestInfo *abs.RequestInformation) context.Context {
+func (a *NetHttpRequestAdapter) prepareContext(ctx context.Context, requestInfo *abs.RequestInformation) (context.Context, context.CancelFunc) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	cancel := func() {} // no-op placeholder used when no timeout is applied
 	// set deadline if not set in receiving context
 	// ignore if timeout is 0 as it means no timeout
 	if _, deadlineSet := ctx.Deadline(); !deadlineSet && a.httpClient.Timeout != 0 {
-		ctx, _ = context.WithTimeout(ctx, a.httpClient.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, a.httpClient.Timeout)
 	}
 
 	for _, value := range requestInfo.GetRequestOptions() {
@@ -231,7 +232,7 @@ func (a *NetHttpRequestAdapter) prepareContext(ctx context.Context, requestInfo 
 	if !obsOptionsSet {
 		ctx = context.WithValue(ctx, observabilityOptionsKeyValue, &a.observabilityOptions)
 	}
-	return ctx
+	return ctx, cancel
 }
 
 // ConvertToNativeRequest converts the given RequestInformation into a native HTTP request.
@@ -253,19 +254,19 @@ func (a *NetHttpRequestAdapter) getRequestFromRequestInformation(ctx context.Con
 	if spanForAttributes == nil {
 		spanForAttributes = span
 	}
-	spanForAttributes.SetAttributes(attribute.String("http.method", requestInfo.Method.String()))
+	spanForAttributes.SetAttributes(httpRequestMethodAttribute.String(requestInfo.Method.String()))
 	uri, err := requestInfo.GetUri()
 	if err != nil {
 		spanForAttributes.RecordError(err)
 		return nil, err
 	}
 	spanForAttributes.SetAttributes(
-		attribute.String("http.scheme", uri.Scheme),
-		attribute.String("http.host", uri.Host),
+		serverAddressAttribute.String(uri.Scheme),
+		urlSchemeAttribute.String(uri.Host),
 	)
 
 	if a.observabilityOptions.IncludeEUIIAttributes {
-		spanForAttributes.SetAttributes(attribute.String("http.uri", uri.String()))
+		spanForAttributes.SetAttributes(urlFullAttribute.String(uri.String()))
 	}
 
 	request, err := nethttp.NewRequestWithContext(ctx, requestInfo.Method.String(), uri.String(), nil)
@@ -290,13 +291,14 @@ func (a *NetHttpRequestAdapter) getRequestFromRequestInformation(ctx context.Con
 		}
 		if request.Header.Get("Content-Type") != "" {
 			spanForAttributes.SetAttributes(
-				attribute.String("http.request_content_type", request.Header.Get("Content-Type")),
+				httpRequestHeaderContentTypeAttribute.String(request.Header.Get("Content-Type")),
 			)
 		}
 		if request.Header.Get("Content-Length") != "" {
 			contentLenVal, _ := strconv.Atoi(request.Header.Get("Content-Length"))
+			request.ContentLength = int64(contentLenVal)
 			spanForAttributes.SetAttributes(
-				attribute.Int("http.request_content_length", contentLenVal),
+				httpRequestBodySizeAttribute.Int(contentLenVal),
 			)
 		}
 	}
@@ -312,7 +314,7 @@ func (a *NetHttpRequestAdapter) startTracingSpan(ctx context.Context, requestInf
 	decodedUriTemplate := decodeUriEncodedString(requestInfo.UrlTemplate, []byte{'-', '.', '~', '$'})
 	telemetryPathValue := queryParametersCleanupRegex.ReplaceAll([]byte(decodedUriTemplate), []byte(""))
 	ctx, span := otel.GetTracerProvider().Tracer(a.observabilityOptions.GetTracerInstrumentationName()).Start(ctx, methodName+" - "+string(telemetryPathValue))
-	span.SetAttributes(attribute.String("http.uri_template", decodedUriTemplate))
+	span.SetAttributes(urlUriTemplateAttribute.String(decodedUriTemplate))
 	return ctx, span
 }
 
@@ -321,7 +323,8 @@ func (a *NetHttpRequestAdapter) Send(ctx context.Context, requestInfo *abs.Reque
 	if requestInfo == nil {
 		return nil, errors.New("requestInfo cannot be nil")
 	}
-	ctx = a.prepareContext(ctx, requestInfo)
+	ctx, cancel := a.prepareContext(ctx, requestInfo)
+	defer cancel()
 	ctx, span := a.startTracingSpan(ctx, requestInfo, "Send")
 	defer span.End()
 	response, err := a.getHttpResponseMessage(ctx, requestInfo, "", span)
@@ -336,6 +339,9 @@ func (a *NetHttpRequestAdapter) Send(ctx context.Context, requestInfo *abs.Reque
 		if err != nil {
 			span.RecordError(err)
 			return nil, err
+		}
+		if result == nil {
+			return nil, nil
 		}
 		return result.(absser.Parsable), nil
 	} else if response != nil {
@@ -378,7 +384,8 @@ func (a *NetHttpRequestAdapter) SendEnum(ctx context.Context, requestInfo *abs.R
 	if requestInfo == nil {
 		return nil, errors.New("requestInfo cannot be nil")
 	}
-	ctx = a.prepareContext(ctx, requestInfo)
+	ctx, cancel := a.prepareContext(ctx, requestInfo)
+	defer cancel()
 	ctx, span := a.startTracingSpan(ctx, requestInfo, "SendEnum")
 	defer span.End()
 	response, err := a.getHttpResponseMessage(ctx, requestInfo, "", span)
@@ -393,6 +400,9 @@ func (a *NetHttpRequestAdapter) SendEnum(ctx context.Context, requestInfo *abs.R
 		if err != nil {
 			span.RecordError(err)
 			return nil, err
+		}
+		if result == nil {
+			return nil, nil
 		}
 		return result.(absser.Parsable), nil
 	} else if response != nil {
@@ -429,7 +439,8 @@ func (a *NetHttpRequestAdapter) SendCollection(ctx context.Context, requestInfo 
 	if requestInfo == nil {
 		return nil, errors.New("requestInfo cannot be nil")
 	}
-	ctx = a.prepareContext(ctx, requestInfo)
+	ctx, cancel := a.prepareContext(ctx, requestInfo)
+	defer cancel()
 	ctx, span := a.startTracingSpan(ctx, requestInfo, "SendCollection")
 	defer span.End()
 	response, err := a.getHttpResponseMessage(ctx, requestInfo, "", span)
@@ -444,6 +455,9 @@ func (a *NetHttpRequestAdapter) SendCollection(ctx context.Context, requestInfo 
 		if err != nil {
 			span.RecordError(err)
 			return nil, err
+		}
+		if result == nil {
+			return nil, nil
 		}
 		return result.([]absser.Parsable), nil
 	} else if response != nil {
@@ -480,7 +494,8 @@ func (a *NetHttpRequestAdapter) SendEnumCollection(ctx context.Context, requestI
 	if requestInfo == nil {
 		return nil, errors.New("requestInfo cannot be nil")
 	}
-	ctx = a.prepareContext(ctx, requestInfo)
+	ctx, cancel := a.prepareContext(ctx, requestInfo)
+	defer cancel()
 	ctx, span := a.startTracingSpan(ctx, requestInfo, "SendEnumCollection")
 	defer span.End()
 	response, err := a.getHttpResponseMessage(ctx, requestInfo, "", span)
@@ -495,6 +510,9 @@ func (a *NetHttpRequestAdapter) SendEnumCollection(ctx context.Context, requestI
 		if err != nil {
 			span.RecordError(err)
 			return nil, err
+		}
+		if result == nil {
+			return nil, nil
 		}
 		return result.([]any), nil
 	} else if response != nil {
@@ -539,7 +557,8 @@ func (a *NetHttpRequestAdapter) SendPrimitive(ctx context.Context, requestInfo *
 	if requestInfo == nil {
 		return nil, errors.New("requestInfo cannot be nil")
 	}
-	ctx = a.prepareContext(ctx, requestInfo)
+	ctx, cancel := a.prepareContext(ctx, requestInfo)
+	defer cancel()
 	ctx, span := a.startTracingSpan(ctx, requestInfo, "SendPrimitive")
 	defer span.End()
 	response, err := a.getHttpResponseMessage(ctx, requestInfo, "", span)
@@ -554,6 +573,9 @@ func (a *NetHttpRequestAdapter) SendPrimitive(ctx context.Context, requestInfo *
 		if err != nil {
 			span.RecordError(err)
 			return nil, err
+		}
+		if result == nil {
+			return nil, nil
 		}
 		return result.(absser.Parsable), nil
 	} else if response != nil {
@@ -620,7 +642,8 @@ func (a *NetHttpRequestAdapter) SendPrimitiveCollection(ctx context.Context, req
 	if requestInfo == nil {
 		return nil, errors.New("requestInfo cannot be nil")
 	}
-	ctx = a.prepareContext(ctx, requestInfo)
+	ctx, cancel := a.prepareContext(ctx, requestInfo)
+	defer cancel()
 	ctx, span := a.startTracingSpan(ctx, requestInfo, "SendPrimitiveCollection")
 	defer span.End()
 	response, err := a.getHttpResponseMessage(ctx, requestInfo, "", span)
@@ -635,6 +658,9 @@ func (a *NetHttpRequestAdapter) SendPrimitiveCollection(ctx context.Context, req
 		if err != nil {
 			span.RecordError(err)
 			return nil, err
+		}
+		if result == nil {
+			return nil, nil
 		}
 		return result.([]any), nil
 	} else if response != nil {
@@ -671,7 +697,8 @@ func (a *NetHttpRequestAdapter) SendNoContent(ctx context.Context, requestInfo *
 	if requestInfo == nil {
 		return errors.New("requestInfo cannot be nil")
 	}
-	ctx = a.prepareContext(ctx, requestInfo)
+	ctx, cancel := a.prepareContext(ctx, requestInfo)
+	defer cancel()
 	ctx, span := a.startTracingSpan(ctx, requestInfo, "SendNoContent")
 	defer span.End()
 	response, err := a.getHttpResponseMessage(ctx, requestInfo, "", span)

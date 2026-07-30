@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	u "net/url"
 	"strings"
 
-	u "net/url"
-
-	azcore "github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	azpolicy "github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	absauth "github.com/microsoft/kiota-abstractions-go/authentication"
 	"go.opentelemetry.io/otel"
@@ -22,7 +21,10 @@ type AzureIdentityAccessTokenProvider struct {
 	allowedHostsValidator *absauth.AllowedHostsValidator
 	// The observation options for the request adapter.
 	observabilityOptions ObservabilityOptions
+	isCaeEnabled         bool
 }
+
+var _ absauth.AccessTokenProvider = (*AzureIdentityAccessTokenProvider)(nil)
 
 // ObservabilityOptions holds the tracing, metrics and logging configuration for the request adapter
 type ObservabilityOptions struct {
@@ -49,8 +51,13 @@ func NewAzureIdentityAccessTokenProviderWithScopesAndValidHosts(credential azcor
 	return NewAzureIdentityAccessTokenProviderWithScopesAndValidHostsAndObservabilityOptions(credential, scopes, validHosts, ObservabilityOptions{})
 }
 
-// NewAzureIdentityAccessTokenProviderWithScopesAndValidHosts creates a new instance of the AzureIdentityAccessTokenProvider.
+// NewAzureIdentityAccessTokenProviderWithScopesAndValidHostsAndObservabilityOptions creates a new instance of the AzureIdentityAccessTokenProvider.
 func NewAzureIdentityAccessTokenProviderWithScopesAndValidHostsAndObservabilityOptions(credential azcore.TokenCredential, scopes []string, validHosts []string, observabilityOptions ObservabilityOptions) (*AzureIdentityAccessTokenProvider, error) {
+	return NewAzureIdentityAccessTokenProviderWithScopesAndValidHostsAndObservabilityOptionsAndIsCaeEnabled(credential, scopes, validHosts, observabilityOptions, true)
+}
+
+// NewAzureIdentityAccessTokenProviderWithScopesAndValidHostsAndObservabilityOptionsAndIsCaeEnabled creates a new instance of the AzureIdentityAccessTokenProvider.
+func NewAzureIdentityAccessTokenProviderWithScopesAndValidHostsAndObservabilityOptionsAndIsCaeEnabled(credential azcore.TokenCredential, scopes []string, validHosts []string, observabilityOptions ObservabilityOptions, isCaeEnabled bool) (*AzureIdentityAccessTokenProvider, error) {
 	if credential == nil {
 		return nil, errors.New("credential cannot be nil")
 	}
@@ -68,6 +75,7 @@ func NewAzureIdentityAccessTokenProviderWithScopesAndValidHostsAndObservabilityO
 		scopes:                finalScopes,
 		allowedHostsValidator: validator,
 		observabilityOptions:  observabilityOptions,
+		isCaeEnabled:          isCaeEnabled,
 	}, nil
 }
 
@@ -100,22 +108,21 @@ func (p *AzureIdentityAccessTokenProvider) GetAuthorizationToken(ctx context.Con
 				return "", err
 			}
 			claims = string(decodedClaims)
-			err = errors.New("received a claim for CAE but azure identity doesn't support claims: " + claims + " https://github.com/Azure/azure-sdk-for-go/issues/14284")
-			span.RecordError(err)
-			return "", err
 		}
 	}
 	span.SetAttributes(attribute.Bool("com.microsoft.kiota.authentication.additional_claims_provided", claims != ""))
 
-	if len(p.scopes) == 0 {
-		p.scopes = append(p.scopes, url.Scheme+"://"+url.Host+"/.default")
+	scopes := p.scopes
+	if len(scopes) == 0 {
+		scopes = append(scopes, url.Scheme+"://"+url.Host+"/.default")
 	}
 
 	options := azpolicy.TokenRequestOptions{
-		Scopes: p.scopes,
-		//TODO pass the claims once the API is updated to support it https://github.com/Azure/azure-sdk-for-go/issues/14284
+		Scopes:    scopes,
+		EnableCAE: p.isCaeEnabled,
+		Claims:    claims,
 	}
-	span.SetAttributes(attribute.String("com.microsoft.kiota.authentication.scopes", strings.Join(p.scopes, ",")))
+	span.SetAttributes(attribute.String("com.microsoft.kiota.authentication.scopes", strings.Join(scopes, ",")))
 	token, err := p.credential.GetToken(ctx, options)
 	if err != nil {
 		span.RecordError(err)

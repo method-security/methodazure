@@ -2,10 +2,71 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.1.4](https://github.com/microsoft/kiota-serialization-json-go/compare/v1.1.3...v1.1.4) (2026-06-26)
 
-## [Unreleased]
+
+### Bug Fixes
+
+* parse numbers encoded as JSON strings in numeric getters ([0ddeef7](https://github.com/microsoft/kiota-serialization-json-go/commit/0ddeef77146325840fd76b4fa825df3ce79c2140))
+* parse numbers encoded as JSON strings in numeric getters ([3701719](https://github.com/microsoft/kiota-serialization-json-go/commit/3701719a47862f4f624d440f60b0ff4aa56905bd)), closes [#174](https://github.com/microsoft/kiota-serialization-json-go/issues/174)
+
+## [1.1.3](https://github.com/microsoft/kiota-serialization-json-go/compare/v1.1.2...v1.1.3) (2026-06-16)
+
+
+### Bug Fixes
+
+* add default error cases to loadJsonTreeFromToken and fix BenchmarkObjectDeserialization ([e710afd](https://github.com/microsoft/kiota-serialization-json-go/commit/e710afdb38053408a48bc187831c4ce7dc7c9ac8))
+* adds offending value to error message ([397c688](https://github.com/microsoft/kiota-serialization-json-go/commit/397c688c7e0b22239cfdbad9c8551e29005e34e2))
+* consume the closing bracket to avoid invalid json ([fce18aa](https://github.com/microsoft/kiota-serialization-json-go/commit/fce18aa315011eee03586274415147a92820d941))
+* improve json.Number parse error details in tokenToValue ([9ba66ee](https://github.com/microsoft/kiota-serialization-json-go/commit/9ba66ee86ce12cd572dc6ad8deb784efd13404da))
+* preserve nested parse errors in untyped object parsing ([dc6d8c5](https://github.com/microsoft/kiota-serialization-json-go/commit/dc6d8c50d63f387437199814157f477ec501866d))
+* validate the closing curly instead of discarding it ([f92f6c1](https://github.com/microsoft/kiota-serialization-json-go/commit/f92f6c1fff128dddc8c67b4f3a4159891165eb9d))
+
+
+### Performance Improvements
+
+* reduce parse node allocations when deserializing primitive types ([0754e54](https://github.com/microsoft/kiota-serialization-json-go/commit/0754e54fc19955ab39b91fae6f36f13350ae3c4b))
+* reduce parse node allocations when deserializing primitive types ([f6e946b](https://github.com/microsoft/kiota-serialization-json-go/commit/f6e946ba8926848687c22031ca4ba47ae15fd139))
+
+## [1.1.2](https://github.com/microsoft/kiota-serialization-json-go/compare/v1.1.1...v1.1.2) (2025-04-02)
+
+
+### Bug Fixes
+
+* removes common go dependency ([93eee3a](https://github.com/microsoft/kiota-serialization-json-go/commit/93eee3ae3298de814ea2a4d034a65aa925ccef41))
+* removes common go dependency ([5c4a75c](https://github.com/microsoft/kiota-serialization-json-go/commit/5c4a75c9a22d47d2ae4ef82016526324f268169e))
+
+## [1.1.1](https://github.com/microsoft/kiota-serialization-json-go/compare/v1.1.0...v1.1.1) (2025-03-24)
+
+
+### Bug Fixes
+
+* upgrades common go dependency to solve triming issues ([90291c0](https://github.com/microsoft/kiota-serialization-json-go/commit/90291c0a596279e3c45e2eb0cb814db19ce1df99))
+* upgrades common go dependency to solve triming issues ([ce4848e](https://github.com/microsoft/kiota-serialization-json-go/commit/ce4848ed57426b7669e0587a6f2971cc923630ee))
+
+## [1.1.0](https://github.com/microsoft/kiota-serialization-json-go/compare/v1.0.9...v1.1.0) (2025-03-13)
+
+
+### Features
+
+* upgrades required go version from go1.18 to go 1.22 ([22ec699](https://github.com/microsoft/kiota-serialization-json-go/commit/22ec69982c170452e7aa565465f4729effbe9695))
+
+## [1.0.9](https://github.com/microsoft/kiota-serialization-json-go/compare/v1.0.8...v1.0.9) (2024-12-17)
+
+
+### Bug Fixes
+
+* changelog cleanup ([1c16092](https://github.com/microsoft/kiota-serialization-json-go/commit/1c1609263beb65dedf4793304411aa22e8cf768e))
+
+## [1.0.8] - 2024-08-13
+
+### Changed
+
+- Modified how number values are derived, allowing values to be cast as the various types.
+
+### Fixed
+
+- Panicing when type is asserted to be what it isn't.
 
 ## [1.0.7] - 2024-02-29
 
@@ -135,7 +196,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.5] - 2022-07-12
 
-- Fixed bug where string literals of `\t` and `\r` would result in generating an invalid JSON. 
+- Fixed bug where string literals of `\t` and `\r` would result in generating an invalid JSON.
 
 ### Changed
 
@@ -161,14 +222,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
- - Updated supported types for Additional Data, unsupported types now throwing an error instead of ignoring.
- - Changed logic that trims excessive commas to be called only once on serialization.
+- Updated supported types for Additional Data, unsupported types now throwing an error instead of ignoring.
+- Changed logic that trims excessive commas to be called only once on serialization.
 
 ## [0.5.0] - 2022-05-26
 
 ### Changed
 
- - Updated reference to abstractions to support enum responses.
+- Updated reference to abstractions to support enum responses.
 
 ## [0.4.0] - 2022-05-19
 
