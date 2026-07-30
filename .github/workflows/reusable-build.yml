@@ -157,6 +157,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
         if: matrix.os != 'macos-latest'
 
+      # methodazure vendors msgraph-sdk-go, whose paths exceed the Windows
+      # 260-char limit — checkout fails on windows-latest without this.
+      - name: Enable long paths in Git
+        run: git config --global core.longpaths true
+
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # ratchet:actions/checkout@v6.0.2
         with:
