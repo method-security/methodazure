@@ -153,10 +153,13 @@ func (a *MethodAzure) InitRootCommand() {
 // isBuiltinCommand reports whether cmd is one of Cobra's generated help or
 // completion commands. They inherit the root's persistent hooks but never talk
 // to Azure and emit no signal, so running those hooks would demand credentials
-// and append a signal blob to the completion script.
+// and append a signal blob to their output. ShellCompRequestCmd is the hidden
+// command the shell invokes on every tab press, so it matters as much as the
+// visible `completion` command that generates the script.
 func isBuiltinCommand(cmd *cobra.Command) bool {
 	for c := cmd; c != nil; c = c.Parent() {
-		if c.Name() == "help" || c.Name() == "completion" {
+		switch c.Name() {
+		case "help", "completion", cobra.ShellCompRequestCmd, cobra.ShellCompNoDescRequestCmd:
 			return true
 		}
 	}
