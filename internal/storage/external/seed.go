@@ -109,11 +109,19 @@ func normalizeSeedVariants(targetSeed string) []string {
 	compact := nonAlphanumRun.ReplaceAllString(seed, "")
 
 	// Also try stripping TLD to get the bare org name.
+	// For multi-part TLDs (e.g. co.uk, com.au) the second-to-last label is a
+	// short TLD component rather than the org name. Heuristic: when that
+	// candidate label is ≤3 chars and there is one more label above it, step
+	// up one level so we capture the actual org name instead of "co" or "com".
 	noTLD := compact
 	if strings.Contains(seed, ".") {
 		labels := strings.FieldsFunc(seed, func(r rune) bool { return r == '.' })
 		if len(labels) >= 2 {
-			noTLD = nonAlphanumRun.ReplaceAllString(labels[len(labels)-2], "")
+			idx := len(labels) - 2
+			if len(labels) >= 3 && len(labels[idx]) <= 3 {
+				idx = len(labels) - 3
+			}
+			noTLD = nonAlphanumRun.ReplaceAllString(labels[idx], "")
 		}
 	}
 
