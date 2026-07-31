@@ -165,6 +165,19 @@ func candidateAccountNames(targetSeed string, maxCandidates int) []string {
 	// variant's lower-priority suffix (mirrors methodaws seed.go convention).
 	for _, suffix := range permutationSuffixes {
 		for _, base := range variants {
+			// Truncate the base so that base+suffix stays within the 24-char
+			// Azure account name limit. Without this, seeds whose compact form
+			// exceeds 24 characters would be silently rejected by
+			// isValidAccountName and discovery would produce zero candidates.
+			maxBase := 24 - len(suffix)
+			if maxBase < 3 {
+				// The suffix alone already consumes almost all of the budget;
+				// a base of fewer than 3 chars would fail isValidAccountName.
+				continue
+			}
+			if len(base) > maxBase {
+				base = base[:maxBase]
+			}
 			name := base + suffix
 			if _, ok := seen[name]; ok {
 				continue
