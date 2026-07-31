@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-// parseContainerURL extracts the storage account name and container name from
-// a well-formed Azure Blob Storage container URL.
+// parseContainerURL extracts the storage account name, container name, and
+// endpoint suffix from a well-formed Azure Blob Storage container URL.
 //
 // Supported forms:
 //
@@ -20,10 +20,14 @@ import (
 //	https://<account>.blob.core.usgovcloudapi.net/<container>
 //	https://<account>.blob.core.chinacloudapi.cn/<container>
 //
-// Returns ("", "") when the URL cannot be parsed into account + container.
-func parseContainerURL(raw string) (accountName, containerName string) {
+// The endpoint suffix is returned so callers building canonical URLs can
+// preserve the cloud implied by the caller URL (rather than defaulting to
+// the AzurePublic endpoint driven by --cloud-config).
+//
+// Returns ("", "", "") when the URL cannot be parsed into account + container.
+func parseContainerURL(raw string) (accountName, containerName, endpointSuffix string) {
 	if raw == "" {
-		return "", ""
+		return "", "", ""
 	}
 
 	// Add scheme if missing so url.Parse sees a Host.
@@ -33,12 +37,12 @@ func parseContainerURL(raw string) (accountName, containerName string) {
 
 	u, err := url.Parse(raw)
 	if err != nil {
-		return "", ""
+		return "", "", ""
 	}
 
 	host := strings.ToLower(u.Host)
 	if host == "" {
-		return "", ""
+		return "", "", ""
 	}
 
 	// Host must look like <account>.blob.core.<suffix>.
@@ -51,16 +55,31 @@ func parseContainerURL(raw string) (accountName, containerName string) {
 	for _, suffix := range blobSuffixes {
 		if strings.HasSuffix(host, suffix) {
 			accountName = strings.TrimSuffix(host, suffix)
+			endpointSuffix = suffix
 			break
 		}
 	}
 	if accountName == "" {
-		return "", ""
+		return "", "", ""
 	}
 
 	// First non-empty path segment is the container name.
 	containerName = firstPathSegment(u.Path)
-	return accountName, containerName
+	return accountName, containerName, endpointSuffix
+}
+
+// cloudFromEndpointSuffix maps a parsed endpoint suffix back to its cloud
+// name string. Used in --url mode to attribute a finding to the correct
+// cloud rather than blindly using the --cloud-config value.
+func cloudFromEndpointSuffix(suffix string) string {
+	switch suffix {
+	case ".blob.core.usgovcloudapi.net":
+		return "AzureGovernment"
+	case ".blob.core.chinacloudapi.cn":
+		return "AzureChina"
+	default:
+		return "AzurePublic"
+	}
 }
 
 // firstPathSegment returns the first non-empty segment of a URL path.

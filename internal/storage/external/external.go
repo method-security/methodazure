@@ -10,8 +10,10 @@ import (
 	// Standard
 	"context"
 	"encoding/xml"
+	stderrors "errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -47,8 +49,11 @@ type azureBlobProps struct {
 }
 
 // accountExists returns true when a HEAD request to the account's root
-// endpoint receives any non-connection-error response.  A DNS failure means
-// the account does not exist; any HTTP response (even 4xx) means it does.
+// endpoint receives any HTTP response. A DNS resolution failure (the host
+// simply isn't registered) means the account does not exist. Other failures
+// — context cancellation, TLS handshake errors, timeouts, transient network
+// errors — are propagated so seed discovery does not silently skip candidates
+// under real infrastructure problems.
 func accountExists(ctx context.Context, accountName, endpointSuffix string) (bool, error) {
 	accountURL := "https://" + accountName + endpointSuffix + "/?comp=list"
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, accountURL, nil)
@@ -57,8 +62,22 @@ func accountExists(ctx context.Context, accountName, endpointSuffix string) (boo
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		// Connection / DNS failure → account does not exist.
-		return false, nil //nolint:nilerr
+		// Context signals are terminal — surface them to abort discovery
+		// promptly rather than misclassifying every remaining candidate.
+		if stderrors.Is(err, context.Canceled) || stderrors.Is(err, context.DeadlineExceeded) {
+			return false, err
+		}
+		// DNS "no such host" is the only signal that reliably distinguishes
+		// "account does not exist" from a transient/config problem.
+		var dnsErr *net.DNSError
+		if stderrors.As(err, &dnsErr) && dnsErr.IsNotFound {
+			return false, nil
+		}
+		// Everything else — TLS, TCP reset, timeout, proxy — is a real
+		// failure. Propagate so the caller can record it and continue with
+		// the next candidate rather than silently pretending the account is
+		// absent.
+		return false, err
 	}
 	_ = resp.Body.Close()
 	return true, nil
@@ -115,10 +134,24 @@ func probeContainer(
 		svc1log.SafeParam("url", propsURL),
 		svc1log.SafeParam("status", resp.StatusCode))
 
-	if resp.StatusCode == http.StatusNotFound {
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusForbidden:
+		// 200 → container exists and is (potentially) publicly accessible;
+		//        header disambiguates.
+		// 403 → container exists but is not anonymously accessible (private
+		//        or firewall-restricted). Still worth recording for
+		//        existence discovery.
+	case http.StatusNotFound:
 		// See doc comment: 404 conflates non-existent with blob-only-public.
 		// Neither is observable via anonymous container properties alone.
 		return nil, nil
+	default:
+		// Anything else (401, 409, 3xx, 5xx, gateway timeouts, TLS-decrypted
+		// error pages…) is not a reliable existence signal. Return an error
+		// so the caller can log and move on rather than inventing a
+		// container record from an ambiguous response — the AITF-129 class
+		// of failure where 5xx from a hostile origin gets treated as "found".
+		return nil, fmt.Errorf("unexpected HTTP %d probing %s", resp.StatusCode, propsURL)
 	}
 
 	publicAccessLevel := resp.Header.Get("x-ms-blob-public-access")
@@ -278,8 +311,8 @@ func EnumerateStorage(ctx context.Context, config storagefern.ExternalStorageCon
 	log.Info("Starting external Azure Blob Storage enumeration",
 		svc1log.SafeParam("containerURL", rawURL))
 
-	accountName, containerName := parseContainerURL(rawURL)
-	if accountName == "" || containerName == "" {
+	urlAccountName, urlContainerName, urlEndpointSuffix := parseContainerURL(rawURL)
+	if urlAccountName == "" || urlContainerName == "" {
 		errors = append(errors, fmt.Sprintf(
 			"could not parse account and container name from URL %q; expected https://<account>.blob.core.<suffix>/<container>",
 			rawURL,
@@ -289,14 +322,27 @@ func EnumerateStorage(ctx context.Context, config storagefern.ExternalStorageCon
 		return report
 	}
 
+	// Preserve the cloud implied by the caller URL rather than the value of
+	// --cloud-config. Otherwise a Government or China URL would be probed
+	// against the public endpoint (or attributed to the wrong cloud in the
+	// resulting ExternalContainer.Identification).
+	urlCloudName := cloudFromEndpointSuffix(urlEndpointSuffix)
+	if urlCloudName != cloudName {
+		log.Info("URL implies a different cloud than --cloud-config; using the URL's cloud",
+			svc1log.SafeParam("urlCloud", urlCloudName),
+			svc1log.SafeParam("flagCloud", cloudName))
+		cloudName = urlCloudName
+		endpointSuffix = urlEndpointSuffix
+	}
+
 	// Canonicalise so probeContainer + listBlobs work on a URL with no
 	// stray path segments or query parameters. The caller's URL might
 	// include a trailing blob path or query string that would break both
 	// the container-properties HEAD (adds `?restype=container`) and the
 	// list-blobs GET (adds `?restype=container&comp=list`).
-	containerURLStr := containerURL(accountName, containerName, endpointSuffix)
+	containerURLStr := containerURL(urlAccountName, urlContainerName, endpointSuffix)
 
-	container, err := probeContainer(ctx, accountName, containerName, containerURLStr, cloudName)
+	container, err := probeContainer(ctx, urlAccountName, urlContainerName, containerURLStr, cloudName)
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Error probing container: %v", err))
 	} else if container == nil {

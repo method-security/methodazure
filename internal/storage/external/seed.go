@@ -78,8 +78,11 @@ const (
 
 var (
 	// Azure storage account names: 3-24 chars, lowercase letters and digits only.
-	// No hyphens, no dots — simpler than S3 bucket names.
-	validAccountName = regexp.MustCompile(`^[a-z][a-z0-9]{1,22}[a-z0-9]$`)
+	// Per the Azure docs the first character may be a letter OR a digit
+	// (https://learn.microsoft.com/azure/storage/common/storage-account-overview#storage-account-name);
+	// the earlier `^[a-z]...` prefix over-filtered valid digit-leading
+	// candidates during seed generation.
+	validAccountName = regexp.MustCompile(`^[a-z0-9]{3,24}$`)
 
 	// Used to strip non-alphanumeric chars when normalising the seed.
 	nonAlphanumRun = regexp.MustCompile(`[^a-z0-9]+`)
@@ -215,6 +218,11 @@ func enumerateBySeed(
 				svc1log.SafeParam("accountName", accountName),
 				svc1log.SafeParam("error", err.Error()))
 			errors = append(errors, fmt.Sprintf("Error checking storage account %s: %v", accountName, err))
+			// Context cancellation / deadline propagates up so we abort
+			// discovery instead of enumerating every remaining candidate.
+			if ctx.Err() != nil {
+				return result, errors
+			}
 			continue
 		}
 		if !exists {

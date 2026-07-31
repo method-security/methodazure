@@ -22,7 +22,9 @@ func TestIsValidAccountName(t *testing.T) {
 		{"contains hyphen", "my-account", false},
 		{"contains dot", "my.account", false},
 		{"contains uppercase", "MyAccount", false},
-		{"starts with digit", "1account", false},
+		// Azure allows names to start with a digit — must be accepted.
+		{"starts with digit", "1account", true},
+		{"all digits", "123456", true},
 		{"exactly 3 chars", "abc", true},
 		{"exactly 24 chars", strings.Repeat("a", 24), true},
 	}
