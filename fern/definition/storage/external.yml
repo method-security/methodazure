@@ -1,0 +1,40 @@
+types:
+  ExternalStorageConfig:
+    properties:
+      url: optional<string>
+      targetSeed: optional<string>
+      maxCandidates: optional<integer>
+      cloud: optional<string>
+  BlobInfo:
+    properties:
+      name: string
+      lastModified: optional<datetime>
+      size: optional<integer>
+      contentType: optional<string>
+  ExternalContainerIdentificationInfo:
+    properties:
+      accountName: string
+      containerName: string
+      url: string
+      cloud: string
+  ExternalContainerConfigurationInfo:
+    properties:
+      allowAnonymousList: boolean
+      allowAnonymousRead: boolean
+      publicAccessLevel: optional<string>
+  ExternalContainerResourceInfo:
+    properties:
+      blobs: optional<list<BlobInfo>>
+  ExternalContainer:
+    properties:
+      identification: ExternalContainerIdentificationInfo
+      configuration: ExternalContainerConfigurationInfo
+      resources: optional<ExternalContainerResourceInfo>
+  ExternalStorageResult:
+    properties:
+      externalContainers: optional<list<ExternalContainer>>
+  ExternalStorageReport:
+    properties:
+      result: ExternalStorageResult
+      config: ExternalStorageConfig
+      errors: optional<list<string>>
