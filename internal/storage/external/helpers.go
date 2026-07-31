@@ -137,6 +137,11 @@ func appendQuery(urlStr, key, value string) (string, error) {
 // from a canonical container URL. It uses url.Parse so callers who pass
 // non-canonical URLs (with existing query strings) still get a well-formed
 // list URL rather than a malformed `...?a=b?restype=container&comp=list`.
+//
+// maxresults=100 is set explicitly so Azure caps the response at 100 entries,
+// which prevents large public containers from returning thousands of blobs,
+// truncating mid-XML at the 4 MB read limit, and causing parse failures.
+// The value matches the maxBlobs constant enforced in the caller.
 func buildListBlobsURL(containerURLStr string) (string, error) {
 	u, err := url.Parse(containerURLStr)
 	if err != nil {
@@ -145,6 +150,7 @@ func buildListBlobsURL(containerURLStr string) (string, error) {
 	q := u.Query()
 	q.Set("restype", "container")
 	q.Set("comp", "list")
+	q.Set("maxresults", "100")
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }
