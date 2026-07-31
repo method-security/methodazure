@@ -98,3 +98,34 @@ func blobEndpointSuffix(cloud string) string {
 func containerURL(accountName, containerName, endpointSuffix string) string {
 	return "https://" + accountName + endpointSuffix + "/" + containerName
 }
+
+// appendQuery returns urlStr with (key, value) added to its query string.
+// If urlStr already has a query, the new pair is merged in. This avoids the
+// malformed URLs that come from naive `?a=b` string concatenation onto a URL
+// that already carries a query.
+func appendQuery(urlStr, key, value string) (string, error) {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	q.Set(key, value)
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}
+
+// buildListBlobsURL constructs the Azure Blob Storage list-blobs REST URL
+// from a canonical container URL. It uses url.Parse so callers who pass
+// non-canonical URLs (with existing query strings) still get a well-formed
+// list URL rather than a malformed `...?a=b?restype=container&comp=list`.
+func buildListBlobsURL(containerURLStr string) (string, error) {
+	u, err := url.Parse(containerURLStr)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	q.Set("restype", "container")
+	q.Set("comp", "list")
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}

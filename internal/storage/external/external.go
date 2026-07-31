@@ -68,44 +68,69 @@ func accountExists(ctx context.Context, accountName, endpointSuffix string) (boo
 // container appears to allow anonymous listing, follows up with a GET list call.
 //
 // Returns:
-//   - (container, nil)   when the container exists and is non-404
-//   - (nil, nil)         when HEAD returns 404 (container does not exist)
-//   - (nil, err)         on unexpected errors
+//   - (container, nil)   when the container exists and is observable from an
+//     anonymous client (HTTP 200 or 403 to Get Container
+//     Properties). 200 with `x-ms-blob-public-access: container`
+//     means public list is available; 403 means the container
+//     exists but is not publicly readable.
+//   - (nil, nil)         when HEAD returns 404. NOTE: 404 conflates
+//     "container does not exist" with "container exists but
+//     has `blob`-only public access" — Azure returns 404 to
+//     anonymous Get Container Properties in the latter case
+//     (see https://learn.microsoft.com/rest/api/storageservices/get-container-properties).
+//     Without a known blob name we cannot distinguish the
+//     two, so we skip both.
+//   - (nil, err)         on transport-level failures (DNS, timeout, unexpected
+//     HTTP code).
+//
+// containerURLStr is expected to be a canonical container URL (no path
+// segments beyond the container name, no query string); callers must
+// canonicalise via containerURL(...) before invoking.
 func probeContainer(
 	ctx context.Context,
 	accountName, containerName, containerURLStr, cloudName string,
 ) (*storagefern.ExternalContainer, error) {
 	log := svc1log.FromContext(ctx)
 
-	// HEAD the container URL to test existence and read public-access level.
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, containerURLStr, nil)
+	// Get Container Properties requires `?restype=container`. Without it, the
+	// server interprets the request as a Get Blob against the `$root` blob and
+	// never emits `x-ms-blob-public-access`, so publicly-listable containers
+	// look like missing ones. Build the properties URL by adding the query
+	// parameter to the canonical container URL.
+	propsURL, err := appendQuery(containerURLStr, "restype", "container")
 	if err != nil {
-		return nil, fmt.Errorf("building HEAD request for %s: %w", containerURLStr, err)
+		return nil, fmt.Errorf("building container-props URL for %s: %w", containerURLStr, err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, propsURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("building HEAD request for %s: %w", propsURL, err)
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("HEAD %s: %w", containerURLStr, err)
+		return nil, fmt.Errorf("HEAD %s: %w", propsURL, err)
 	}
 	_ = resp.Body.Close()
 
 	log.Info("Probed container",
-		svc1log.SafeParam("url", containerURLStr),
+		svc1log.SafeParam("url", propsURL),
 		svc1log.SafeParam("status", resp.StatusCode))
 
 	if resp.StatusCode == http.StatusNotFound {
-		// Container does not exist — skip without error.
+		// See doc comment: 404 conflates non-existent with blob-only-public.
+		// Neither is observable via anonymous container properties alone.
 		return nil, nil
 	}
 
-	// Any non-404 response → the container exists; record what we know.
 	publicAccessLevel := resp.Header.Get("x-ms-blob-public-access")
 
-	// Derive access flags from the public-access-level header value.
-	// "container" → both list and read allowed
-	// "blob"      → only anonymous blob read allowed (no list)
-	// absent      → container exists but is private (403 etc.)
-	allowAnonymousList := publicAccessLevel == "container"
-	allowAnonymousRead := publicAccessLevel == "container" || publicAccessLevel == "blob"
+	// Only HTTP 200 + `x-ms-blob-public-access: container` reliably indicates
+	// anonymous list capability from an unauthenticated client. Blob-only
+	// public access ("blob") returns 404 to Get Container Properties (handled
+	// above), so that header value is unreachable on this code path. Any 200
+	// without the header, or a 403, means the container exists but is not
+	// publicly listable — we still emit a record for existence discovery.
+	allowAnonymousList := resp.StatusCode == http.StatusOK && publicAccessLevel == "container"
+	allowAnonymousRead := allowAnonymousList
 
 	identification := &storagefern.ExternalContainerIdentificationInfo{
 		AccountName:   accountName,
@@ -147,9 +172,16 @@ func probeContainer(
 }
 
 // listBlobs performs an anonymous GET list-blobs request and returns up to 100
-// blobs as BlobInfo structs.
+// blobs as BlobInfo structs. containerURLStr must be a canonical container URL
+// (no existing query string); callers canonicalise via containerURL(...).
 func listBlobs(ctx context.Context, containerURLStr string) ([]*storagefern.BlobInfo, error) {
-	listURL := containerURLStr + "?restype=container&comp=list"
+	// Build the list URL safely: even though callers pass a canonical URL,
+	// use url.Parse so any future path/query drift doesn't produce a
+	// malformed request.
+	listURL, err := buildListBlobsURL(containerURLStr)
+	if err != nil {
+		return nil, fmt.Errorf("building list URL for %s: %w", containerURLStr, err)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("building list request for %s: %w", listURL, err)
@@ -242,26 +274,35 @@ func EnumerateStorage(ctx context.Context, config storagefern.ExternalStorageCon
 		return report
 	}
 
-	containerURLStr := *config.Url
+	rawURL := *config.Url
 	log.Info("Starting external Azure Blob Storage enumeration",
-		svc1log.SafeParam("containerURL", containerURLStr))
+		svc1log.SafeParam("containerURL", rawURL))
 
-	accountName, containerName := parseContainerURL(containerURLStr)
+	accountName, containerName := parseContainerURL(rawURL)
 	if accountName == "" || containerName == "" {
 		errors = append(errors, fmt.Sprintf(
 			"could not parse account and container name from URL %q; expected https://<account>.blob.core.<suffix>/<container>",
-			containerURLStr,
+			rawURL,
 		))
 		report.Result = &result
 		report.Errors = errors
 		return report
 	}
 
+	// Canonicalise so probeContainer + listBlobs work on a URL with no
+	// stray path segments or query parameters. The caller's URL might
+	// include a trailing blob path or query string that would break both
+	// the container-properties HEAD (adds `?restype=container`) and the
+	// list-blobs GET (adds `?restype=container&comp=list`).
+	containerURLStr := containerURL(accountName, containerName, endpointSuffix)
+
 	container, err := probeContainer(ctx, accountName, containerName, containerURLStr, cloudName)
 	if err != nil {
 		errors = append(errors, fmt.Sprintf("Error probing container: %v", err))
 	} else if container == nil {
-		errors = append(errors, fmt.Sprintf("Container not found at %s", containerURLStr))
+		// 404 to Get Container Properties, which conflates non-existent
+		// with blob-only public access. See probeContainer doc.
+		errors = append(errors, fmt.Sprintf("Container not found or not observable at %s", containerURLStr))
 	} else {
 		result.ExternalContainers = append(result.ExternalContainers, container)
 	}
