@@ -11,7 +11,7 @@ This mirrors [methodaws](https://github.com/Method-Security/methodaws/tree/devel
 If you are looking to add a brand new capability to the tool, you can take the following steps.
 
 1. Add a file to `cmd/` that corresponds to the sub-command name you'd like to add to the `methodazure` CLI
-2. methodazure ships no commands today, so there is no in-repo template. Use [methodaws](https://github.com/Method-Security/methodaws/tree/develop/cmd) for the current shape; the retired methodazure commands are still readable at [v0.0.17](https://github.com/Method-Security/methodazure/tree/v0.0.17/cmd)
+2. Use the current `storage external` implementation as the in-repo command template. The retired methodazure commands are still readable at [v0.0.17](https://github.com/Method-Security/methodazure/tree/v0.0.17/cmd).
 3. Your file needs to be a member function of the `methodazure` struct and should be of the form `Init<cmd>Command`
 4. Add a new member to the `methodazure` struct in `cmd/root.go` that corresponsds to your command name. Remember, the first letter must be capitalized.
 5. Call your `Init` function from `main.go`

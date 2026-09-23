@@ -1,8 +1,8 @@
 # Capabilities
 
-methodazure is being rebuilt. Its previous enumeration commands were retired so that new ones can be written against the current tool conventions, so the CLI currently ships only its root scaffolding — `help`, `completion`, and `version`.
+methodazure is being rebuilt. Its previous enumeration commands were retired so that new ones can be written against the current tool conventions. The first restored capability is anonymous Azure Blob Storage discovery through [`storage external`](./storage.md).
 
-Capability pages will be added back here as each new command lands. The last release containing the retired commands is [v0.0.17](https://github.com/Method-Security/methodazure/releases/tag/v0.0.17).
+Additional capability pages will be added as each new command lands. The last release containing the retired commands is [v0.0.17](https://github.com/Method-Security/methodazure/releases/tag/v0.0.17).
 
 ## Top Level Flags
 
@@ -21,6 +21,10 @@ Flags:
 ## Version Command
 
 Run `methodazure version` to get the exact version information for your binary
+
+## Available Commands
+
+- `storage external`: anonymously probe a container URL or generate storage account candidates from a target seed
 
 ## Output Formats
 
