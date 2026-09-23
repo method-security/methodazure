@@ -13,6 +13,7 @@ nav:
       - Basic Usage: getting-started/basic-usage.md
   - Docs:
       - Overview: docs/index.md
+      - Storage: docs/storage.md
   - Contributing:
       - How to contribute: community/community.md
       - Development:

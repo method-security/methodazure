@@ -8,20 +8,20 @@ methodazure leverages the Microsoft Azure SDK's environment variable mechanism f
 
 ## Binaries
 
-Running as a binary means you don't need to do anything additional for methodazure to leverage the environment variables you have already exported. No enumeration commands ship today — methodazure is being rebuilt and its capabilities are being added back one at a time — so for now you can confirm the binary works with:
+The `storage external` command performs anonymous probing, so it can run without Azure credentials. Provide either one container URL or one target seed:
 
 ```bash
-methodazure version
+methodazure storage external --url https://account.blob.core.windows.net/container
+methodazure storage external --target-seed example.com --max-candidates 100
 ```
 
 ## Docker
 
-Running methodazure within a Docker container requires that you pass the Azure credential environment variables into the container. Once enumeration commands land, that looks like:
+The anonymous storage command does not need Azure environment variables:
 
 ```bash
-docker run \
-  -e AZURE_TENANT_ID=$AZURE_TENANT_ID \
-  -e AZURE_CLIENT_ID=$AZURE_CLIENT_ID \
-  -e AZURE_CLIENT_SECRET=$AZURE_CLIENT_SECRET \
-  ghcr.io/method-security/methodazure:latest <command>
+docker run ghcr.io/method-security/methodazure:latest \
+  storage external --target-seed example.com
 ```
+
+Pass `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET` when using commands that authenticate to Azure APIs.

@@ -10,7 +10,7 @@ Hello and welcome to the methodazure documentation. While we always want to prov
 
 methodazure provides security operators with data-rich Azure enumeration capabilities to help them gain visibility into their Azure environments. Designed with data-modeling and data-integration needs in mind, methodazure can be used on its own as an interactive CLI, orchestrated as part of a broader data pipeline, or leveraged from within the Method Platform.
 
-> **methodazure is being rebuilt.** Its previous enumeration commands were retired so that new ones can be written against the current tool conventions. The CLI currently ships only its root scaffolding — `help`, `completion`, and `version` — and capabilities are being added back one at a time. The last release containing the retired commands is [v0.0.17](https://github.com/Method-Security/methodazure/releases/tag/v0.0.17).
+> **methodazure is being rebuilt.** Its previous enumeration commands were retired so that new ones can be written against the current tool conventions. Capabilities are being added back one at a time, beginning with anonymous Azure Blob Storage discovery. The last release containing the retired commands is [v0.0.17](https://github.com/Method-Security/methodazure/releases/tag/v0.0.17).
 
 For the most up to date listing of what the tool can enumerate, please see the documentation [here](./docs/index.md)
 
@@ -43,15 +43,19 @@ Sovereign clouds are selected with `--cloud-config` (`AzurePublic`, `AzureGovern
 
 ### General Usage
 
-No enumeration commands ship today — see the note above. The root scaffolding is in place, so the CLI responds to:
+Probe a known public container URL without Azure credentials:
 
 ```bash
-methodazure --help
-methodazure version
-methodazure completion <bash|zsh|fish|powershell>
+methodazure storage external --url https://account.blob.core.windows.net/container
 ```
 
-Authentication is only required once a command actually talks to Azure; `help`, `completion`, and `version` run without credentials.
+Or generate and probe candidate storage account names from an organization or domain seed:
+
+```bash
+methodazure storage external --target-seed example.com --max-candidates 100
+```
+
+`storage external` performs anonymous HTTP requests and does not require Azure credentials. Authentication is required only for commands that talk to authenticated Azure APIs.
 
 ## Contributing
 
