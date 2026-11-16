@@ -17,7 +17,7 @@ builds:
       - "-extldflags '-static -lm -ldl -lpthread'"
       - -X main.version={{.Version}}
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     goos:
       - linux
     goarch:
@@ -32,7 +32,7 @@ builds:
       - "-extldflags '-static -lm -ldl -lpthread'"
       - -X main.version={{.Version}}
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     goos:
       - linux
     goarch:
