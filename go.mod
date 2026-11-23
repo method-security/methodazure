@@ -1,6 +1,6 @@
 module github.com/Method-Security/methodazure
 
-go 1.27.0
+go 1.27.4
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.24.0

@@ -58,13 +58,14 @@ jobs:
           content, versions = re.subn(r'^version = ".*"$', 'version = "' + os.environ["PACKAGE_VERSION"].removeprefix("v") + '"', content, flags=re.MULTILINE)
           if (names, versions) != (2, 1):
               raise RuntimeError("Unexpected generated Python package metadata")
+          content = content.replace("Repository = ''", 'Repository = "https://github.com/method-security/methodazure"')
           path.write_text(content)
           PYTHON
           python3 -m build --outdir generated/python-dist generated/python-package/fern-pydantic-model
           python3 -m twine check generated/python-dist/*
 
       - name: Upload Python package
-        run: python3 -m twine upload --non-interactive --repository-url https://upload.pypi.org/legacy/ generated/python-dist/*
+        run: python3 -m twine upload --verbose --non-interactive --repository-url https://upload.pypi.org/legacy/ generated/python-dist/*
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
