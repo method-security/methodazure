@@ -13,7 +13,7 @@ on:
         type: string
 
 env:
-  GO_VERSION: "1.26"
+  GO_VERSION: "1.27"
   # Fern Definition inputs still require the legacy generation backend.
   FERN_USE_SDK_GEN_API: "false"
 
@@ -44,7 +44,7 @@ jobs:
       - name: Generate Fern Go Code
         run: |
           npm install -g fern-api
-          fern generate --group local --retry-rate-limited
+          fern generate --local --group local --retry-rate-limited
         env:
           FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
 
@@ -107,7 +107,7 @@ jobs:
       - name: Generate Fern Go Code
         run: |
           npm install -g fern-api
-          fern generate --group local --retry-rate-limited
+          fern generate --local --group local --retry-rate-limited
         env:
           FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
 
@@ -192,7 +192,7 @@ jobs:
       - name: Generate Fern Go Code
         run: |
           npm install -g fern-api
-          fern generate --group local --retry-rate-limited
+          fern generate --local --group local --retry-rate-limited
         env:
           FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
 
@@ -270,7 +270,7 @@ jobs:
       - name: Generate Fern Go Code
         run: |
           npm install -g fern-api
-          fern generate --group local --retry-rate-limited
+          fern generate --local --group local --retry-rate-limited
         env:
           FERN_TOKEN: ${{ secrets.FERN_TOKEN }}
 
